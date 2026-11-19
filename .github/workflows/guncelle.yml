@@ -1,0 +1,21 @@
+name: Guncelle
+on:
+  push:
+    paths:
+      - 'guncelle.zip'
+permissions:
+  contents: write
+jobs:
+  guncelle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Zip'i ac ve yerine koy
+        run: |
+          unzip -o -q guncelle.zip -d .
+          rm guncelle.zip
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "Guncelleme"
+          git push
