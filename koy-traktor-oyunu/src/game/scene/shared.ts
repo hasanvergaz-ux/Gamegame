@@ -2,7 +2,8 @@
 // and the time uniform every swaying plant reads.
 import * as THREE from "three";
 import { FieldMask } from "../sim/field";
-import { MAP_SIZE, SURF, baseSurfaceAt, heightAt, inRect, FIELDS, COLLIDERS } from "../sim/world";
+import { DIG, DIG_N } from "../sim/dig";
+import { MAP_SIZE, SURF, baseSurfaceAt, staticHeightAt, inRect, FIELDS, COLLIDERS } from "../sim/world";
 
 export const uTime = { value: 0 };
 export const mask = new FieldMask(2048);
@@ -39,7 +40,7 @@ export function getHeights() {
     const n = GRID + 1;
     heights = new Float32Array(n * n);
     for (let iz = 0; iz < n; iz++)
-      for (let ix = 0; ix < n; ix++) heights[iz * n + ix] = heightAt(-MAP_SIZE / 2 + ix * CELL, -MAP_SIZE / 2 + iz * CELL);
+      for (let ix = 0; ix < n; ix++) heights[iz * n + ix] = staticHeightAt(-MAP_SIZE / 2 + ix * CELL, -MAP_SIZE / 2 + iz * CELL);
   }
   return heights;
 }
@@ -83,3 +84,50 @@ export function getDensityTexture() {
   }
   return densityTex;
 }
+
+// Dig offsets: 4 neighbouring nodes packed into one RGBA float texel so changed rows can be
+// uploaded with partial updates (three.js only supports those for 4-component data).
+let digTex: THREE.DataTexture | null = null;
+export function getDigTexture() {
+  if (!digTex) {
+    digTex = new THREE.DataTexture(DIG.data, DIG_N / 4, DIG_N, THREE.RGBAFormat, THREE.FloatType);
+    digTex.magFilter = digTex.minFilter = THREE.NearestFilter;
+    digTex.generateMipmaps = false;
+    digTex.needsUpdate = true;
+  }
+  return digTex;
+}
+
+export function uploadDig() {
+  const t = getDigTexture();
+  const n = DIG.n;
+  const any = DIG.consumeDirty((row, c0, c1) => {
+    const a = (row * n + c0) & ~3;
+    const b = ((row * n + c1) | 3) + 1;
+    t.addUpdateRange(a, b - a);
+  });
+  if (any) t.needsUpdate = true;
+}
+
+/** High-detail terrain patch that follows the active vehicle (center x, z, half size). */
+export const PATCH_HALF = 32;
+export const uPatch = { value: new THREE.Vector3(0, 0, PATCH_HALF) };
+
+/** GLSL: bilinear dig offset at a world point; identical to DigField.at(). */
+export const DIG_GLSL = `
+uniform highp sampler2D uDig;
+float digNode(ivec2 ij) {
+  if (ij.x < 0 || ij.y < 0 || ij.x >= ${DIG_N} || ij.y >= ${DIG_N}) return 0.0;
+  vec4 t = texelFetch(uDig, ivec2(ij.x >> 2, ij.y), 0);
+  int c = ij.x & 3;
+  return c == 0 ? t.r : c == 1 ? t.g : c == 2 ? t.b : t.a;
+}
+float digAt(vec2 p) {
+  vec2 g = (p + ${(MAP_SIZE / 2).toFixed(1)}) / ${DIG.cell.toFixed(4)} - 0.5;
+  vec2 i = floor(g); vec2 f = g - i;
+  ivec2 ii = ivec2(i);
+  float a = digNode(ii); float b = digNode(ii + ivec2(1, 0));
+  float c = digNode(ii + ivec2(0, 1)); float d = digNode(ii + ivec2(1, 1));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+`;

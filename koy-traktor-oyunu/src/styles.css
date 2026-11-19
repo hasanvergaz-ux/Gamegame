@@ -124,6 +124,7 @@
   --go: oklch(0.65 0.16 145);
   --stop: oklch(0.58 0.2 27);
   --soil: oklch(0.45 0.07 55);
+  --soil-bright: oklch(0.6 0.1 60);
 }
 
 .dark {
@@ -396,6 +397,59 @@
     border-top-color: var(--harvest);
     animation: spin 0.9s linear infinite;
   }
+  /* vehicle switch: the one control that is always in reach */
+  .hud-switch {
+    position: absolute;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 8px 18px 7px;
+    border-radius: 14px;
+    border: 2px solid var(--harvest);
+    background: var(--hud-strong);
+    color: var(--hud-foreground);
+    font-family: var(--font-display);
+    box-shadow: 0 6px 22px oklch(0 0 0 / 0.35);
+    backdrop-filter: blur(6px);
+    z-index: 6;
+    transition: transform 0.1s, background 0.15s;
+  }
+  .hud-switch:hover { background: color-mix(in oklch, var(--harvest) 22%, var(--hud-strong)); }
+  .hud-switch:active { transform: translateX(-50%) scale(0.96); }
+  .hud-switch-now { font-size: 19px; font-weight: 700; letter-spacing: 0.02em; }
+  .hud-switch-go { font-size: 13px; font-weight: 600; color: var(--harvest); }
+  .hud-switch kbd { font-family: inherit; padding: 0 5px; border-radius: 4px; border: 1px solid var(--hud-border); color: var(--hud-muted); }
+  .hud-switch ~ .hud-prompt { bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); }
+  .hud-gear[data-auto="true"] { background: var(--harvest); color: var(--harvest-foreground); }
+  .hud-meter-soil > div { background: var(--soil-bright); }
+  /* excavator levers */
+  .hud-joints {
+    position: absolute;
+    right: max(16px, env(safe-area-inset-right));
+    top: 50%;
+    transform: translateY(-46%);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    border-radius: 16px;
+    background: var(--hud);
+    border: 1px solid var(--hud-border);
+    backdrop-filter: blur(6px);
+    z-index: 5;
+  }
+  .hud-joint { display: grid; grid-template-columns: 40px 54px 54px; align-items: center; gap: 6px; }
+  .hud-joint > span { font-size: 14px; font-weight: 700; color: var(--hud-muted); text-align: right; }
+  .hud-joint .hud-btn { width: 54px; height: 46px; font-size: 22px; }
+  .hud-joint-wide { grid-template-columns: 1fr 54px; margin-top: 4px; }
+  .hud-joint-wide .hud-btn { font-size: 11px; }
+  .hud-joint-wide .hud-btn i { font-size: 18px; }
+  .hud-joint .hud-btn-dig { width: 100%; height: 52px; font-size: 13px; background: color-mix(in oklch, var(--harvest) 30%, var(--hud)); border-color: var(--harvest); }
+  .hud-joint .hud-btn-dig[data-on="true"] { background: var(--harvest); color: var(--harvest-foreground); animation: hud-pulse-dig 1.2s ease-in-out infinite; }
   @media (max-width: 760px), (max-height: 520px) {
     .hud-btn { width: 50px; height: 46px; font-size: 10px; }
     .hud-btn i { font-size: 16px; }
@@ -423,10 +477,23 @@
     .hud-hitch { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 270px); transform: none; }
     .hud-steer { gap: 8px; left: max(10px, env(safe-area-inset-left)); }
     .hud-pad { width: 74px; height: 74px; font-size: 30px; }
+    .hud-switch { left: 10px; transform: none; bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 262px); padding: 6px 10px; }
+    .hud-switch:active { transform: scale(0.96); }
+    .hud-switch-now { font-size: 15px; }
+    .hud-switch-go { font-size: 11px; }
+    .hud-switch kbd { display: none; }
+    .hud-switch ~ .hud-prompt { bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); }
+    .hud-joints { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 250px); transform: none; padding: 6px; gap: 4px; }
+    .hud-joint { grid-template-columns: 34px 46px 46px; gap: 4px; }
+    .hud-joint .hud-btn { width: 46px; height: 40px; font-size: 18px; }
+    .hud-joint-wide { grid-template-columns: 1fr 46px; }
   }
 }
 @keyframes hud-pulse {
   50% { box-shadow: 0 0 0 6px color-mix(in oklch, var(--go) 35%, transparent); }
+}
+@keyframes hud-pulse-dig {
+  50% { box-shadow: 0 0 0 6px color-mix(in oklch, var(--harvest) 35%, transparent); }
 }
 @keyframes spin {
   to { transform: rotate(360deg); }

@@ -1,5 +1,6 @@
 // World layout and terrain: the single source of truth for heights, surfaces,
 // buildings and colliders. Both the scene (drawing) and the sim (physics) read it.
+import { DIG } from "./dig";
 import { clamp, fbm, mulberry32, smoothstep } from "./math";
 
 export const MAP_SIZE = 600; // inner, fully detailed terrain (meters)
@@ -185,7 +186,13 @@ function padWeight(p: Pad, x: number, z: number) {
   return 1 - smoothstep(0, 8, e);
 }
 
+/** Ground height including excavated holes and dumped soil piles. */
 export function heightAt(x: number, z: number) {
+  return staticHeightAt(x, z) + DIG.at(x, z);
+}
+
+/** Ground height of the untouched map (no digging). */
+export function staticHeightAt(x: number, z: number) {
   let h = baseHeight(x, z);
   // flatten across the main road and the farm tracks, following them along their length
   nearestOn(ROAD_SEGS, x, z, tmpN);
@@ -257,6 +264,8 @@ export type Collider =
   | { k: "b"; x: number; z: number; hx: number; hz: number; c: number; s: number };
 
 export const COLLIDERS: Collider[] = [];
+/** Moving bodies (the parked vehicle you are not driving), rewritten every step. */
+export const DYNAMIC: Collider[] = [];
 const box = (x: number, z: number, w: number, d: number, rot: number) =>
   COLLIDERS.push({ k: "b", x, z, hx: w / 2, hz: d / 2, c: Math.cos(rot), s: Math.sin(rot) });
 for (const h of HOUSES) box(h.x, h.z, h.w + 0.4, h.d + 0.4, h.rot);
@@ -361,6 +370,8 @@ for (const t of TREES) {
 
 // ---------- start positions ----------
 export const START = { x: -70, z: 22, yaw: Math.PI };
+/** The mini excavator starts on open grass east of the farm yard. */
+export const EXC_START = { x: -44, z: 50, yaw: Math.PI / 2 };
 /** The cultivator starts parked a few meters behind the tractor. */
 export const IMPLEMENT_START = { x: -70, z: 28.0, yaw: Math.PI };
 
@@ -378,3 +389,18 @@ export function isTillable(x: number, z: number) {
   }
   return true;
 }
+
+/** Soil the excavator may dig: tillable ground away from trees, poles, bales and silos. */
+export function isDiggable(x: number, z: number) {
+  if (!isTillable(x, z)) return false;
+  for (const c of COLLIDERS) {
+    if (c.k !== "c") continue;
+    const dx = x - c.x;
+    const dz = z - c.z;
+    const m = c.r + 0.5;
+    if (dx * dx + dz * dz < m * m) return false;
+  }
+  return true;
+}
+DIG.staticHeight = staticHeightAt;
+DIG.canDig = isDiggable;

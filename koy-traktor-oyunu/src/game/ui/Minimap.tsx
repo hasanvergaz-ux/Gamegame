@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
-import { sim } from "../runtime";
+import { exc, sim } from "../runtime";
 import { mask } from "../scene/shared";
+import { DIG } from "../sim/dig";
+import { useToggles } from "../store";
 import { BARN, FIELDS, HOUSES, MAP_SIZE, MOSQUE, PITS, ROAD_PTS, TRACKS, YARD } from "../sim/world";
 
 const S = 180;
@@ -64,23 +66,32 @@ export function Minimap() {
     const cv = ref.current!;
     const c = cv.getContext("2d")!;
     let last = -1;
+    let lastDig = -1;
     let frame = 0;
+    const dstep = DIG.n / 256;
     const id = setInterval(() => {
       frame++;
-      if (mask.tilledCells !== last && frame % 4 === 0) {
+      if ((mask.tilledCells !== last || DIG.version !== lastDig) && frame % 4 === 0) {
         last = mask.tilledCells;
+        lastDig = DIG.version;
         for (let y = 0; y < 256; y++)
           for (let x = 0; x < 256; x++) {
             const v = mask.data[(Math.floor(y * step) * mask.n + Math.floor(x * step)) * 4]!;
+            const d = DIG.data[Math.floor((y + 0.5) * dstep) * DIG.n + Math.floor((x + 0.5) * dstep)]!;
             const i = (y * 256 + x) * 4;
-            img.data[i] = 70;
-            img.data[i + 1] = 44;
-            img.data[i + 2] = 26;
-            img.data[i + 3] = v > 100 ? 255 : 0;
+            const hole = d < -0.12;
+            const pile = d > 0.12;
+            img.data[i] = hole ? 38 : pile ? 150 : 70;
+            img.data[i + 1] = hole ? 24 : pile ? 112 : 44;
+            img.data[i + 2] = hole ? 14 : pile ? 72 : 26;
+            img.data[i + 3] = v > 100 || hole || pile ? 255 : 0;
           }
         og.putImageData(img, 0, 0);
       }
-      const { tr, imp } = sim;
+      const { imp } = sim;
+      const isExc = useToggles.getState().vehicle === "excavator";
+      const tr = isExc ? { x: exc.x, z: exc.z, yaw: exc.yaw } : sim.tr;
+      const other = isExc ? sim.tr : exc;
       const sc = S / SPAN;
       c.clearRect(0, 0, S, S);
       c.save();
@@ -100,9 +111,19 @@ export function Minimap() {
         c.arc(imp.x, imp.z, 3.2, 0, Math.PI * 2);
         c.fill();
       }
+      // the parked vehicle
+      c.save();
+      c.translate(other.x, other.z);
+      c.rotate(-other.yaw);
+      c.fillStyle = isExc ? "#4fb34a" : "#f0ae1c";
+      c.strokeStyle = "#1a1a1a";
+      c.lineWidth = 1.2 / sc;
+      c.fillRect(-3, -4, 6, 8);
+      c.strokeRect(-3, -4, 6, 8);
       c.restore();
-      // tractor arrow
-      c.fillStyle = "#ffd23a";
+      c.restore();
+      // your vehicle
+      c.fillStyle = isExc ? "#f0ae1c" : "#ffd23a";
       c.strokeStyle = "#1a1a1a";
       c.lineWidth = 1.5;
       c.beginPath();

@@ -4,8 +4,8 @@ import { use, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { mulberry32 } from "../sim/math";
-import { FIELDS, MAP_SIZE, TREES, heightAt, type TreeKind } from "../sim/world";
-import { CELL, GRID, getDensityTexture, getHeightTexture, getMaskTexture, uTime } from "./shared";
+import { FIELDS, MAP_SIZE, TREES, staticHeightAt, type TreeKind } from "../sim/world";
+import { CELL, DIG_GLSL, GRID, getDensityTexture, getDigTexture, getHeightTexture, getMaskTexture, uTime } from "./shared";
 import { loadCard, loadTex } from "./textures";
 
 /** Two crossed quads, base at y=0, normals pointing up (soft, natural shading). */
@@ -50,6 +50,7 @@ export function Grass({ count, tile }: { count: number; tile: number }) {
       uHeight: { value: getHeightTexture() },
       uDensity: { value: getDensityTexture() },
       uMask: { value: getMaskTexture() },
+      uDig: { value: getDigTexture() },
     };
     mat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, uniforms);
@@ -62,6 +63,7 @@ uniform vec2 uCenter; uniform float uTile; uniform float uTime;
 uniform sampler2D uHeight; uniform sampler2D uDensity; uniform sampler2D uMask;
 varying float vTint;
 ${MASK_UV}
+${DIG_GLSL}
 float hAt(vec2 p) {
   vec2 g = (p + ${(MAP_SIZE / 2).toFixed(1)}) / ${CELL.toFixed(4)};
   vec2 i = floor(g); vec2 f = g - i;
@@ -79,7 +81,8 @@ vec2 wp = base + mod(aOff.xy * uTile - base, uTile);
 float dn = texture(uDensity, maskUv(wp)).r;
 vec4 mk = texture(uMask, maskUv(wp));
 float dc = length(wp - uCenter) / (uTile * 0.5);
-float keep = step(aOff.z, dn * 0.98) * (1.0 - smoothstep(0.25, 0.45, mk.r)) * (1.0 - smoothstep(0.72, 1.0, dc));
+float dgv = digAt(wp);
+float keep = step(aOff.z, dn * 0.98) * (1.0 - smoothstep(0.25, 0.45, mk.r)) * (1.0 - smoothstep(0.72, 1.0, dc)) * (1.0 - smoothstep(0.025, 0.07, abs(dgv)));
 float rnd = fract(aOff.z * 91.7);
 float sc = (0.55 + rnd * 0.8) * keep;
 float ang = aOff.z * 43.0;
@@ -88,7 +91,7 @@ vec3 p = position;
 p = vec3(p.x * cs - p.z * sn, p.y * (0.7 + fract(aOff.z * 7.3) * 0.7) * (1.0 - 0.6 * mk.g), p.x * sn + p.z * cs) * sc;
 float wind = sin(uTime * 1.6 + wp.x * 0.35 + wp.y * 0.21) + 0.5 * sin(uTime * 2.7 + wp.x * 0.9);
 p.xz += vec2(0.07, 0.05) * wind * position.y * sc;
-vec3 transformed = vec3(wp.x, hAt(wp) - 0.04, wp.y) + p;
+vec3 transformed = vec3(wp.x, hAt(wp) + dgv - 0.04, wp.y) + p;
 vTint = rnd;`,
         );
       sh.fragmentShader = sh.fragmentShader
@@ -120,7 +123,7 @@ export function Wheat({ spacing }: { spacing: number }) {
       for (let z = f.z0 + 0.6; z < f.z1 - 0.4; z += spacing) {
         const px = x + (r() - 0.5) * spacing * 0.8;
         const pz = z + (r() - 0.5) * spacing * 0.8;
-        pts.push(px, heightAt(px, pz) - 0.05, pz, r());
+        pts.push(px, staticHeightAt(px, pz) - 0.05, pz, r());
       }
     const geo = new THREE.InstancedBufferGeometry();
     geo.index = base.index;
@@ -128,16 +131,16 @@ export function Wheat({ spacing }: { spacing: number }) {
     geo.setAttribute("aPos", new THREE.InstancedBufferAttribute(new Float32Array(pts), 4));
     geo.instanceCount = pts.length / 4;
     const mat = new THREE.MeshStandardMaterial({ map, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.85, alphaToCoverage: true });
-    const uniforms = { uTime, uMask: { value: getMaskTexture() } };
+    const uniforms = { uTime, uMask: { value: getMaskTexture() }, uDig: { value: getDigTexture() } };
     mat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, uniforms);
       sh.vertexShader = sh.vertexShader
-        .replace("#include <common>", `#include <common>\nattribute vec4 aPos; uniform float uTime; uniform sampler2D uMask; varying float vTint;\n${MASK_UV}`)
+        .replace("#include <common>", `#include <common>\nattribute vec4 aPos; uniform float uTime; uniform sampler2D uMask; varying float vTint;\n${MASK_UV}\n${DIG_GLSL}`)
         .replace("#include <beginnormal_vertex>", "vec3 objectNormal = vec3(0.0, 1.0, 0.0);")
         .replace(
           "#include <begin_vertex>",
           `vec4 mk = texture(uMask, maskUv(aPos.xz));
-float keep = 1.0 - smoothstep(0.25, 0.45, mk.r);
+float keep = (1.0 - smoothstep(0.25, 0.45, mk.r)) * (1.0 - smoothstep(0.025, 0.07, abs(digAt(aPos.xz))));
 float ang = aPos.w * 40.0; float cs = cos(ang); float sn = sin(ang);
 vec3 p = position;
 p = vec3(p.x * cs - p.z * sn, p.y * (0.85 + aPos.w * 0.3) * (1.0 - 0.75 * mk.g), p.x * sn + p.z * cs) * keep;
@@ -273,7 +276,7 @@ export function Trees({ far }: { far: boolean }) {
         const r = mulberry32(kind.length * 7);
         list.forEach((t, i) => {
           q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), t.rot);
-          m.compose(new THREE.Vector3(t.x, heightAt(t.x, t.z), t.z), q, new THREE.Vector3(t.s, t.s * (0.9 + r() * 0.2), t.s));
+          m.compose(new THREE.Vector3(t.x, staticHeightAt(t.x, t.z), t.z), q, new THREE.Vector3(t.s, t.s * (0.9 + r() * 0.2), t.s));
           tm.setMatrixAt(i, m);
           lm.setMatrixAt(i, m);
           const k = 0.8 + r() * 0.35;

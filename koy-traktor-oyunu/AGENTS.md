@@ -38,3 +38,9 @@ use the editor.
 - Game textures, sounds and the tractor GLB live in `public/game-assets/` and are resolved by name through `asset()` in `src/game/assets.ts`.
 - Dev-only `window.__game.simulate(seconds, input)` steps the sim deterministically for checks in the slow sandbox renderer.
 - `noPropertyAccessFromIndexSignature` is off in tsconfig because three.js geometry attributes and shader uniforms are index-signature maps.
+
+## Excavator & digging
+- Terrain height = static map height (`staticHeightAt`) + the global `DIG` offset field (`src/game/sim/dig.ts`); anything that places static scenery uses `staticHeightAt`, anything that rides on the ground uses `heightAt`. Why: dug holes and piles must move vehicles but never re-plant trees/buildings.
+- Dig rules (carving, deposits, repose, auto cycle) stay in plain TS under `src/game/sim/`; the GPU only reads the packed dig texture via `uploadDig`. Why: volume conservation is unit-tested without a renderer.
+- The fine terrain patch follows the active vehicle; the coarse mesh discards inside it. Why: 0.5 m dig detail without a 1200²-vertex terrain.
+- Dev hooks: `window.__game.exc`, `.dig`, `.camCtl`, `.simulateExc(seconds, input)`; `?arac=kepce` starts in the excavator.

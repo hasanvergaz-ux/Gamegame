@@ -45,3 +45,9 @@ Telefonda ekrandaki düğmeler kullanılır.
 
 Kullanılan teknolojiler: React 19, TanStack Start, Vite, Three.js, React Three Fiber, Tailwind CSS.
 Dokular Poly Haven'dan (CC0, serbest kullanım). Traktör modeli ve motor sesi senin yüklediğin orijinal oyundan.
+
+## Kepçe (mini ekskavatör)
+- Araç değiştir: ekrandaki **⇄ Kepçeye geç / Traktöre geç** düğmesi ya da **V**.
+- Sürüş: W/S ileri-geri, A/D dönüş. Kule ← →, bom ↑ ↓, arm E/Q, kova Z/X, bıçak G, kontak K.
+- **Boşluk / OTOMATİK KAZ**: kepçe önündeki toprağı kazar, sola döker; her geçişte çukur derinleşir.
+- Yollar ve bina zeminleri dışında haritadaki tüm toprak kazılabilir; dökülen toprak yığın olur ve traktörle üzerinden geçilebilir.

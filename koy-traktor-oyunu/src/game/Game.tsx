@@ -3,18 +3,21 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { gameAudio } from "./audio/GameAudio";
-import { bindKeyboard, camCtl, input, readAxes } from "./input";
-import { REQUIRED, loaded, sim } from "./runtime";
+import { bindKeyboard, camCtl, input, readAxes, readExcAxes } from "./input";
+import { REQUIRED, exc, loaded, sim } from "./runtime";
 import { Buildings, windowMats } from "./scene/Buildings";
 import { useCultivatorRig } from "./scene/Cultivator";
+import { useExcavatorRig } from "./scene/Excavator";
 import { useParticles } from "./scene/Particles";
 import { Grass, Trees, Wheat } from "./scene/Plants";
 import { Terrain, TerrainPlaceholder } from "./scene/Terrain";
 import { useTractorRig } from "./scene/Tractor";
-import { uTime, uploadMask } from "./scene/shared";
+import { PATCH_HALF, uPatch, uTime, uploadDig, uploadMask } from "./scene/shared";
 import { setMaxAnisotropy } from "./scene/textures";
 import { IMPL } from "./sim/hitch";
 import { clamp, damp, lerp } from "./sim/math";
+import { DIG } from "./sim/dig";
+import { EX, PHASE_NAMES, resetExcavator, stepExcavator, type ExInput } from "./sim/excavator";
 import { resetSim, stepSim, toWorld } from "./sim/tractor";
 import { SURF, SURF_NAMES, heightAt } from "./sim/world";
 import { toast, useHud, useToggles } from "./store";
@@ -32,28 +35,32 @@ const SMOKE = new THREE.Color("#9a9a9a");
 const SOOT = new THREE.Color("#262626");
 const tmpV = new THREE.Vector3();
 const tmpP = { x: 0, y: 0, z: 0 };
+const NO_LEVERS = { drive: 0, turn: 0, swing: 0, boom: 0, stick: 0, bucket: 0 };
+const PARKED = { throttle: 0, brake: 1, steer: 0, liftCmd: 0 };
+const qTmp = new THREE.Quaternion();
 
 function Driver() {
   const rig = useTractorRig(sim);
   const cult = useCultivatorRig();
+  const exRig = useExcavatorRig();
   const parts = useParticles();
   const { scene, camera, gl } = useThree();
   const sun = useRef<THREE.DirectionalLight>(null);
   const hemi = useRef<THREE.HemisphereLight>(null);
   const sky = useRef<THREE.Mesh>(null);
   const stars = useRef<THREE.Points>(null);
-  const st = useRef({ t: 0, night: 0, maskT: 0, hudT: 0, smokeAcc: 0, dustAcc: 0, ready: false, camInit: false, lx: 0, lz: 0 });
+  const st = useRef({ t: 0, night: 0, maskT: 0, digT: 0, hudT: 0, smokeAcc: 0, exSmokeAcc: 0, dustAcc: 0, digDustAcc: 0, ready: false, camInit: false, lx: 0, lz: 0, veh: "" });
   const fog = useMemo(() => new THREE.Fog("#c4d4e0", 140, 900), []);
 
   useEffect(() => {
     scene.fog = fog;
     setMaxAnisotropy(gl.capabilities.getMaxAnisotropy());
     loaded.add("tractor");
-    if (import.meta.env.DEV) Object.assign(window, { __three: { scene, camera, rig, cult } });
+    if (import.meta.env.DEV) Object.assign(window, { __three: { scene, camera, rig, cult, exRig } });
     return () => {
       scene.fog = null;
     };
-  }, [scene, fog, gl, camera, rig, cult]);
+  }, [scene, fog, gl, camera, rig, cult, exRig]);
 
   useFrame((state, delta) => {
     const s = st.current;
@@ -61,15 +68,41 @@ function Driver() {
     s.t += dt;
     uTime.value = s.t;
     const tg = useToggles.getState();
-    const ax = readAxes();
+    const isExc = tg.vehicle === "excavator";
+    const ax = isExc ? PARKED : readAxes();
+    if (s.veh !== tg.vehicle) {
+      s.veh = tg.vehicle;
+      s.camInit = false;
+    }
 
     if (input.resetPressed) {
       input.resetPressed = false;
-      resetSim(sim);
+      if (isExc) resetExcavator(exc);
+      else resetSim(sim);
       s.camInit = false;
     }
-    stepSim(sim, { ...ax, dir: tg.dir, engineOn: tg.engine, attachPressed: input.attachPressed }, dt);
+    stepSim(sim, { ...ax, dir: tg.dir, engineOn: tg.engine, attachPressed: !isExc && input.attachPressed }, dt);
     input.attachPressed = false;
+    const exIn: ExInput = {
+      ...(isExc ? readExcAxes() : NO_LEVERS),
+      bladeDown: tg.bladeDown,
+      engineOn: tg.excEngine,
+      autoToggle: isExc && input.autoPressed,
+    };
+    input.autoPressed = false;
+    stepExcavator(exc, exIn, dt, sim.tr);
+    for (const e of exc.events) {
+      if (e.type === "crank") gameAudio.crank();
+      else if (e.type === "scoop") gameAudio.thud(0.5);
+      else if (e.type === "dump") gameAudio.thud(0.7);
+      else if (e.type === "limit") gameAudio.clunk(0.25 + 0.3 * e.strength);
+      else if (e.type === "bump") gameAudio.thud(e.strength / 2);
+      else if (e.type === "full" && !exc.auto.on) toast("Kova dolu — kuleyi çevir (← →) ve X ile boşalt");
+      else if (e.type === "autoOn") toast("⛏ Otomatik kazı başladı — durdurmak için Boşluk ya da bir kol");
+      else if (e.type === "autoOff") toast("Otomatik kazı durdu");
+      else if (e.type === "noHydraulics" && isExc) toast("Hidrolik için önce kepçenin motorunu çalıştır (🔑 / K)");
+    }
+    exc.events.length = 0;
     for (const e of sim.events) {
       if (e.type === "crank") gameAudio.crank();
       else if (e.type === "attach") {
@@ -84,11 +117,15 @@ function Driver() {
     }
     sim.events.length = 0;
     const { tr, imp } = sim;
-    if (Math.hypot(tr.x - s.lx, tr.z - s.lz) > 8) s.camInit = false; // teleported: snap the camera
-    s.lx = tr.x;
-    s.lz = tr.z;
+    const fx = isExc ? exc.x : tr.x;
+    const fz = isExc ? exc.z : tr.z;
+    if (Math.hypot(fx - s.lx, fz - s.lz) > 8) s.camInit = false; // teleported: snap the camera
+    s.lx = fx;
+    s.lz = fz;
+    uPatch.value.set(Math.round(fx / 2) * 2, Math.round(fz / 2) * 2, PATCH_HALF);
 
-    rig.update(sim, tg, s.t, dt);
+    rig.update(sim, isExc ? { ...tg, head: false, work: false, beacon: false, hood: false } : tg, s.t, dt);
+    exRig.update(exc, tg, s.t, dt, isExc);
 
     // implement pose (eased while snapping onto the hitch)
     const r = cult.root;
@@ -123,7 +160,35 @@ function Driver() {
         parts.emit(tmpP.x, heightAt(tmpP.x, tmpP.z) + 0.2, tmpP.z, (Math.random() - 0.5) * 0.6, 0.5 + Math.random() * 0.6, (Math.random() - 0.5) * 0.6, 2.4, 1.4, DUST, 0.32);
       }
     }
+    // excavator: exhaust, dust where the bucket bites, puffs where clods land
+    if (exc.running) {
+      s.exSmokeAcc += dt * (4 + exc.load * 22);
+      exRig.house.localToWorld(tmpV.copy(exRig.exhaust));
+      while (s.exSmokeAcc > 1) {
+        s.exSmokeAcc--;
+        const heavy = exc.load > 0.65;
+        parts.emit(tmpV.x, tmpV.y, tmpV.z, (Math.random() - 0.5) * 0.3, 1.3 + Math.random() * 0.5, (Math.random() - 0.5) * 0.3, 1.6, 0.4, heavy ? SOOT : SMOKE, heavy ? 0.45 : 0.22);
+      }
+    }
+    if (exc.digging > 0.05 || exc.bladeWork > 0.05) {
+      s.digDustAcc += dt * 26 * Math.max(exc.digging, exc.bladeWork);
+      while (s.digDustAcc > 1) {
+        s.digDustAcc--;
+        const g = heightAt(exc.tip.x, exc.tip.z);
+        parts.emit(exc.tip.x + (Math.random() - 0.5) * 0.6, g + 0.15, exc.tip.z + (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.5, 0.4 + Math.random() * 0.5, (Math.random() - 0.5) * 0.5, 2, 1.1, DUST, 0.3);
+      }
+    }
+    for (let i = 0; i < exc.landed.length; i += 3) {
+      const l = exc.landed[i]!;
+      parts.emit(l.x, l.y + 0.1, l.z, (Math.random() - 0.5) * 0.9, 0.3 + Math.random() * 0.4, (Math.random() - 0.5) * 0.9, 1.6, 1.0, DUST, 0.26);
+    }
     parts.update(dt);
+
+    s.digT += dt;
+    if (s.digT > 0.05) {
+      s.digT = 0;
+      uploadDig();
+    }
 
     s.maskT += dt;
     if (s.maskT > 0.12) {
@@ -133,8 +198,38 @@ function Driver() {
 
     // camera
     const cam = camera as THREE.PerspectiveCamera;
-    const tgt = tmpV.set(tr.x, tr.y + 1.6, tr.z);
-    if (tg.cam === 1) {
+    const tgt = isExc ? tmpV.set(exc.x, exc.y + 1.7, exc.z) : tmpV.set(tr.x, tr.y + 1.6, tr.z);
+    const houseYaw = exc.yaw + exc.j.swing.p;
+    if (isExc && tg.cam === 1) {
+      const e = exRig.house.localToWorld(exRig.eye.clone());
+      cam.position.copy(e);
+      const dir = new THREE.Vector3(Math.sin(camCtl.yaw) * Math.cos(camCtl.pitch - 0.18), Math.sin(camCtl.pitch - 0.18), Math.cos(camCtl.yaw) * Math.cos(camCtl.pitch - 0.18)).applyQuaternion(exRig.house.getWorldQuaternion(qTmp));
+      cam.up.set(0, 1, 0);
+      cam.lookAt(e.add(dir));
+      cam.fov = camCtl.fov;
+      s.camInit = false;
+    } else if (isExc && tg.cam === 2) {
+      const p = exRig.house.localToWorld(new THREE.Vector3(5.2, 2.3, 2.4));
+      const look = exRig.house.localToWorld(new THREE.Vector3(EX.BOOM.x, 0.6, 2.7));
+      p.y = Math.max(p.y, heightAt(p.x, p.z) + 1);
+      cam.position.lerp(p, s.camInit ? damp(6, dt) : 1);
+      cam.up.set(0, 1, 0);
+      cam.lookAt(look);
+      cam.fov = 58;
+      s.camInit = true;
+    } else if (isExc) {
+      const az = houseYaw + Math.PI + camCtl.yaw;
+      const el = clamp(0.32 + camCtl.pitch, -0.1, 1.3);
+      const d = camCtl.dist;
+      const want = new THREE.Vector3(tgt.x + Math.sin(az) * Math.cos(el) * d, tgt.y + Math.sin(el) * d, tgt.z + Math.cos(az) * Math.cos(el) * d);
+      want.y = Math.max(want.y, heightAt(want.x, want.z) + 0.9);
+      if (!s.camInit) cam.position.copy(want);
+      else cam.position.lerp(want, damp(4, dt));
+      s.camInit = true;
+      cam.up.set(0, 1, 0);
+      cam.lookAt(tgt);
+      cam.fov = 62;
+    } else if (tg.cam === 1) {
       const e = rig.root.localToWorld(rig.eye.clone());
       cam.position.copy(e);
       const cy = camCtl.yaw;
@@ -206,8 +301,8 @@ function Driver() {
     if (s.hudT > 0.1) {
       s.hudT = 0;
       useHud.setState({
-        speed: Math.abs(tr.v) * 3.6,
-        rpm: tr.rpm,
+        speed: Math.abs(isExc ? exc.v : tr.v) * 3.6,
+        rpm: isExc ? exc.rpm : tr.rpm,
         lift: tr.lift,
         attached: imp.attached,
         working: imp.working,
@@ -215,10 +310,25 @@ function Driver() {
         attachDist: sim.attachDist,
         area: sim.tilledM2,
         surface: SURF_NAMES[tr.surface] ?? "",
-        running: tr.running,
+        running: isExc ? exc.running : tr.running,
+        bucket: exc.bucketLoad / EX.CAP,
+        dug: exc.dugM3,
+        phase: exc.auto.on ? PHASE_NAMES[exc.auto.phase] : "",
+        auto: exc.auto.on,
+        inSoil: exc.inSoil,
       });
     }
-    gameAudio.update({
+    if (isExc)
+      gameAudio.update({
+        rpm: exc.rpm,
+        load: exc.load,
+        running: exc.running,
+        working: Math.min(1, Math.max(exc.digging, exc.dumping * 0.8, exc.bladeWork)),
+        speed: Math.abs(exc.v),
+        rough: 0.7,
+        hydraulic: exc.hyd > 0.08 ? (exc.j.boom.v >= 0 ? 1 : -1) : 0,
+      });
+    else gameAudio.update({
       rpm: tr.rpm,
       load: tr.load,
       running: tr.running,
@@ -238,6 +348,8 @@ function Driver() {
     <>
       <primitive object={rig.root} />
       <primitive object={cult.root} />
+      <primitive object={exRig.root} />
+      <primitive object={exRig.clods} />
       <primitive object={parts.points} />
       <Sky ref={sky as never} distance={4000} turbidity={5} rayleigh={1.4} mieCoefficient={0.004} mieDirectionalG={0.86} sunPosition={[60, 60, 80]} />
       <Stars ref={stars as never} radius={500} depth={60} count={2500} factor={5} fade speed={0} />
@@ -372,7 +484,17 @@ export default function Game() {
       }
       return { x: sim.tr.x, z: sim.tr.z, tilled: sim.tilledM2, attached: sim.imp.attached };
     };
-    (window as unknown as { __game: unknown }).__game = { sim, toggles: useToggles, hud: useHud, audio: gameAudio, input, simulate };
+    const simulateExc = (seconds: number, inp: Partial<ExInput> = {}) => {
+      const tg = useToggles.getState();
+      const base: ExInput = { ...NO_LEVERS, bladeDown: tg.bladeDown, engineOn: tg.excEngine, autoToggle: false, ...inp };
+      for (let t = 0; t < seconds; t += 1 / 60) {
+        stepExcavator(exc, base, 1 / 60, sim.tr);
+        base.autoToggle = false;
+        exc.events.length = 0;
+      }
+      return { x: exc.x, z: exc.z, dug: exc.dugM3, bucket: exc.bucketLoad, phase: exc.auto.phase, clods: exc.clods.length };
+    };
+    (window as unknown as { __game: unknown }).__game = { sim, exc, dig: DIG, toggles: useToggles, hud: useHud, audio: gameAudio, input, camCtl, simulate, simulateExc };
   }, []);
 
   return (

@@ -4,8 +4,10 @@
 import { FieldMask } from "./field";
 import { HITCH, IMPL, hitchPoint } from "./hitch";
 import { clamp, damp, lerp, wrapAngle } from "./math";
+import { DIG } from "./dig";
 import {
   COLLIDERS,
+  DYNAMIC,
   IMPLEMENT_START,
   MAP_LIMIT,
   START,
@@ -141,15 +143,18 @@ const TRACK_AMOUNT = [26, 32, 70, 75, 22, 85, 0, 0, 0];
 export function surfaceAt(sim: Sim, x: number, z: number): Surface {
   const s = baseSurfaceAt(x, z);
   if (s === SURF.asphalt || s === SURF.concrete) return s;
+  if (Math.abs(DIG.at(x, z)) > 0.06) return SURF.dirt; // dug or dumped soil
   return sim.mask.tilledAt(x, z) > 0.5 ? SURF.tilled : s;
 }
+
+const COLLIDER_LISTS = [DYNAMIC, COLLIDERS];
 
 function collide(sim: Sim, lz: number, r: number) {
   const tr = sim.tr;
   const cx = tr.x + Math.sin(tr.yaw) * lz;
   const cz = tr.z + Math.cos(tr.yaw) * lz;
   let hit = false;
-  for (const c of COLLIDERS) {
+  for (const list of COLLIDER_LISTS) for (const c of list) {
     const dx = cx - c.x;
     const dz = cz - c.z;
     if (Math.abs(dx) > 16 || Math.abs(dz) > 16) continue;

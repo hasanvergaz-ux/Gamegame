@@ -4,7 +4,7 @@ import { use, useMemo } from "react";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { mulberry32 } from "../sim/math";
-import { BALES, BARN, FENCES, HOUSES, MOSQUE, POLES, SHED, SILOS, WALLS, baseHeight, heightAt } from "../sim/world";
+import { BALES, BARN, FENCES, HOUSES, MOSQUE, POLES, SHED, SILOS, WALLS, baseHeight, staticHeightAt } from "../sim/world";
 import { loadTex } from "./textures";
 
 /** Materials whose glow follows day/night (lit windows). */
@@ -220,7 +220,7 @@ function mosque(b: Builder) {
 function propsAndWalls(b: Builder) {
   for (const w of WALLS) {
     const y = baseHeight(w.x, w.z);
-    b.add("stone", boxM(w.w, 1.6, w.d, 2), T(w.x, Math.min(y, heightAt(w.x, w.z)) + 0.3, w.z), w.rot);
+    b.add("stone", boxM(w.w, 1.6, w.d, 2), T(w.x, Math.min(y, staticHeightAt(w.x, w.z)) + 0.3, w.z), w.rot);
   }
   for (const f of FENCES) {
     const L = Math.hypot(f.bx - f.ax, f.bz - f.az);
@@ -229,27 +229,27 @@ function propsAndWalls(b: Builder) {
       const t = (i * 2.5) / L;
       const x = f.ax + (f.bx - f.ax) * t;
       const z = f.az + (f.bz - f.az) * t;
-      b.add("wood", boxM(0.14, 1.5, 0.14, 1), T(x, heightAt(x, z) + 0.55, z), a, new THREE.Color("#7a5a3c"));
+      b.add("wood", boxM(0.14, 1.5, 0.14, 1), T(x, staticHeightAt(x, z) + 0.55, z), a, new THREE.Color("#7a5a3c"));
     }
     for (let s = 0; s < 12; s++) {
       const t0 = s / 12;
       const t1 = (s + 1) / 12;
       const x = f.ax + (f.bx - f.ax) * (t0 + t1) / 2;
       const z = f.az + (f.bz - f.az) * (t0 + t1) / 2;
-      for (const y of [0.55, 1.05]) b.add("wood", boxM(0.06, 0.12, L / 12 + 0.02, 1.5), T(x, heightAt(x, z) + y, z), a, new THREE.Color("#8d6a45"));
+      for (const y of [0.55, 1.05]) b.add("wood", boxM(0.06, 0.12, L / 12 + 0.02, 1.5), T(x, staticHeightAt(x, z) + y, z), a, new THREE.Color("#8d6a45"));
     }
   }
   for (const bl of BALES) {
     const g = new THREE.CylinderGeometry(0.78, 0.78, 1.2, 22);
     const uv = g.attributes.uv as THREE.BufferAttribute;
     for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 2.5, uv.getY(i) * 0.6);
-    const y = heightAt(bl.x, bl.z) + 0.78 + bl.stack * 1.35;
+    const y = staticHeightAt(bl.x, bl.z) + 0.78 + bl.stack * 1.35;
     b.add("straw", g, T(bl.x, y, bl.z), bl.rot, undefined, new THREE.Matrix4().makeRotationZ(Math.PI / 2));
   }
   // power line
   const tops: THREE.Vector3[][] = [[], [], []];
   for (const [x, z] of POLES) {
-    const y = heightAt(x, z);
+    const y = staticHeightAt(x, z);
     b.add("wood", new THREE.CylinderGeometry(0.11, 0.15, 9.5, 8), T(x, y + 4.5, z), 0, new THREE.Color("#5b4632"));
     b.add("wood", boxM(0.12, 0.12, 2.2, 1), T(x, y + 8.8, z), Math.PI / 2, new THREE.Color("#4a3a2a"));
     [-0.9, 0, 0.9].forEach((o, k) => {
