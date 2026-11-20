@@ -4,10 +4,13 @@ import { Suspense, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { gameAudio } from "./audio/GameAudio";
 import { bindKeyboard, camCtl, input, readAxes, readExcAxes } from "./input";
-import { REQUIRED, exc, loaded, sim } from "./runtime";
+import { REQUIRED, exc, loaded, sim, truck } from "./runtime";
 import { Buildings, windowMats } from "./scene/Buildings";
 import { useCultivatorRig } from "./scene/Cultivator";
 import { useExcavatorRig } from "./scene/Excavator";
+import { Site } from "./scene/Site";
+import { useTruckRig } from "./scene/Truck";
+import { glassMats, glowMats } from "./scene/signs";
 import { useParticles } from "./scene/Particles";
 import { Grass, Trees, Wheat } from "./scene/Plants";
 import { Terrain, TerrainPlaceholder } from "./scene/Terrain";
@@ -19,6 +22,7 @@ import { clamp, damp, lerp } from "./sim/math";
 import { DIG } from "./sim/dig";
 import { EX, PHASE_NAMES, resetExcavator, stepExcavator, type ExInput } from "./sim/excavator";
 import { resetSim, stepSim, toWorld } from "./sim/tractor";
+import { PARKED_TRUCK, TK, resetTruck, stepTruck, truckToWorld } from "./sim/truck";
 import { SURF, SURF_NAMES, heightAt } from "./sim/world";
 import { toast, useHud, useToggles } from "./store";
 import { Hud } from "./ui/Hud";
@@ -38,29 +42,31 @@ const tmpP = { x: 0, y: 0, z: 0 };
 const NO_LEVERS = { drive: 0, turn: 0, swing: 0, boom: 0, stick: 0, bucket: 0 };
 const PARKED = { throttle: 0, brake: 1, steer: 0, liftCmd: 0 };
 const qTmp = new THREE.Quaternion();
+const tailP = { x: 0, z: 0 };
 
 function Driver() {
   const rig = useTractorRig(sim);
   const cult = useCultivatorRig();
   const exRig = useExcavatorRig();
+  const tkRig = useTruckRig();
   const parts = useParticles();
   const { scene, camera, gl } = useThree();
   const sun = useRef<THREE.DirectionalLight>(null);
   const hemi = useRef<THREE.HemisphereLight>(null);
   const sky = useRef<THREE.Mesh>(null);
   const stars = useRef<THREE.Points>(null);
-  const st = useRef({ t: 0, night: 0, maskT: 0, digT: 0, hudT: 0, smokeAcc: 0, exSmokeAcc: 0, dustAcc: 0, digDustAcc: 0, ready: false, camInit: false, lx: 0, lz: 0, veh: "" });
+  const st = useRef({ tkSmokeAcc: 0, tipDustAcc: 0, t: 0, night: 0, maskT: 0, digT: 0, hudT: 0, smokeAcc: 0, exSmokeAcc: 0, dustAcc: 0, digDustAcc: 0, ready: false, camInit: false, lx: 0, lz: 0, veh: "" });
   const fog = useMemo(() => new THREE.Fog("#c4d4e0", 140, 900), []);
 
   useEffect(() => {
     scene.fog = fog;
     setMaxAnisotropy(gl.capabilities.getMaxAnisotropy());
     loaded.add("tractor");
-    if (import.meta.env.DEV) Object.assign(window, { __three: { scene, camera, rig, cult, exRig } });
+    if (import.meta.env.DEV) Object.assign(window, { __three: { scene, camera, rig, cult, exRig, tkRig } });
     return () => {
       scene.fog = null;
     };
-  }, [scene, fog, gl, camera, rig, cult, exRig]);
+  }, [scene, fog, gl, camera, rig, cult, exRig, tkRig]);
 
   useFrame((state, delta) => {
     const s = st.current;
@@ -69,7 +75,10 @@ function Driver() {
     uTime.value = s.t;
     const tg = useToggles.getState();
     const isExc = tg.vehicle === "excavator";
-    const ax = isExc ? PARKED : readAxes();
+    const isTruck = tg.vehicle === "truck";
+    const isTr = tg.vehicle === "tractor";
+    const axes = readAxes();
+    const ax = isTr ? axes : PARKED;
     if (s.veh !== tg.vehicle) {
       s.veh = tg.vehicle;
       s.camInit = false;
@@ -78,10 +87,11 @@ function Driver() {
     if (input.resetPressed) {
       input.resetPressed = false;
       if (isExc) resetExcavator(exc);
+      else if (isTruck) resetTruck(truck);
       else resetSim(sim);
       s.camInit = false;
     }
-    stepSim(sim, { ...ax, dir: tg.dir, engineOn: tg.engine, attachPressed: !isExc && input.attachPressed }, dt);
+    stepSim(sim, { ...ax, dir: tg.dir, engineOn: tg.engine, attachPressed: isTr && input.attachPressed }, dt);
     input.attachPressed = false;
     const exIn: ExInput = {
       ...(isExc ? readExcAxes() : NO_LEVERS),
@@ -103,6 +113,24 @@ function Driver() {
       else if (e.type === "noHydraulics" && isExc) toast("Hidrolik için önce kepçenin motorunu çalıştır (🔑 / K)");
     }
     exc.events.length = 0;
+    stepTruck(
+      truck,
+      isTruck
+        ? { throttle: axes.throttle, brake: axes.brake, steer: axes.steer, bedCmd: axes.liftCmd, dir: tg.dir, engineOn: tg.truckEngine }
+        : { ...PARKED_TRUCK, dir: tg.dir, engineOn: tg.truckEngine },
+      dt,
+      sim.tr,
+    );
+    for (const e of truck.events) {
+      if (e.type === "crank") gameAudio.crank();
+      else if (e.type === "bump") gameAudio.thud(e.strength / 3);
+      else if (e.type === "tipStart") {
+        gameAudio.clunk(0.9);
+        toast("Damper boşaltıyor — kamyonu hafifçe ileri sür, toprak serilsin");
+      } else if (e.type === "full") toast("Kamyon dolu — damperi kaldırıp boşalt (E)");
+      else if (e.type === "noHydraulics" && isTruck) toast("Damper için önce kamyonun motorunu çalıştır (🔑 / K)");
+    }
+    truck.events.length = 0;
     for (const e of sim.events) {
       if (e.type === "crank") gameAudio.crank();
       else if (e.type === "attach") {
@@ -117,14 +145,15 @@ function Driver() {
     }
     sim.events.length = 0;
     const { tr, imp } = sim;
-    const fx = isExc ? exc.x : tr.x;
-    const fz = isExc ? exc.z : tr.z;
+    const fx = isExc ? exc.x : isTruck ? truck.x : tr.x;
+    const fz = isExc ? exc.z : isTruck ? truck.z : tr.z;
     if (Math.hypot(fx - s.lx, fz - s.lz) > 8) s.camInit = false; // teleported: snap the camera
     s.lx = fx;
     s.lz = fz;
     uPatch.value.set(Math.round(fx / 2) * 2, Math.round(fz / 2) * 2, PATCH_HALF);
 
-    rig.update(sim, isExc ? { ...tg, head: false, work: false, beacon: false, hood: false } : tg, s.t, dt);
+    rig.update(sim, !isTr ? { ...tg, head: false, work: false, beacon: false, hood: false } : tg, s.t, dt);
+    tkRig.update(truck, tg, s.t, dt, isTruck);
     exRig.update(exc, tg, s.t, dt, isExc);
 
     // implement pose (eased while snapping onto the hitch)
@@ -158,6 +187,24 @@ function Driver() {
         const lx = (Math.random() - 0.5) * IMPL.halfWidth * 2;
         toWorld(imp, lx, 0.05, IMPL.rollerZ - 0.1, tmpP);
         parts.emit(tmpP.x, heightAt(tmpP.x, tmpP.z) + 0.2, tmpP.z, (Math.random() - 0.5) * 0.6, 0.5 + Math.random() * 0.6, (Math.random() - 0.5) * 0.6, 2.4, 1.4, DUST, 0.32);
+      }
+    }
+    // dump truck: exhaust stack and the cloud where soil slides out
+    if (truck.running) {
+      s.tkSmokeAcc += dt * (4 + truck.load * 26);
+      tkRig.root.localToWorld(tmpV.copy(tkRig.exhaust));
+      while (s.tkSmokeAcc > 1) {
+        s.tkSmokeAcc--;
+        const heavy = truck.gas > 0.6;
+        parts.emit(tmpV.x, tmpV.y, tmpV.z, (Math.random() - 0.5) * 0.3, 1.5 + Math.random() * 0.6, (Math.random() - 0.5) * 0.3, 1.8, 0.5, heavy ? SOOT : SMOKE, heavy ? 0.6 : 0.28);
+      }
+    }
+    if (truck.tipping) {
+      s.tipDustAcc += dt * 45;
+      while (s.tipDustAcc > 1) {
+        s.tipDustAcc--;
+        truckToWorld(truck, (Math.random() - 0.5) * 2, TK.BED_Z0 - 0.5, tailP);
+        parts.emit(tailP.x, heightAt(tailP.x, tailP.z) + 0.3, tailP.z, (Math.random() - 0.5) * 0.9, 0.5 + Math.random() * 0.7, (Math.random() - 0.5) * 0.9, 2.2, 1.3, DUST, 0.34);
       }
     }
     // excavator: exhaust, dust where the bucket bites, puffs where clods land
@@ -198,9 +245,38 @@ function Driver() {
 
     // camera
     const cam = camera as THREE.PerspectiveCamera;
-    const tgt = isExc ? tmpV.set(exc.x, exc.y + 1.7, exc.z) : tmpV.set(tr.x, tr.y + 1.6, tr.z);
+    const tgt = isExc ? tmpV.set(exc.x, exc.y + 1.7, exc.z) : isTruck ? tmpV.set(truck.x, truck.y + 2.2, truck.z) : tmpV.set(tr.x, tr.y + 1.6, tr.z);
     const houseYaw = exc.yaw + exc.j.swing.p;
-    if (isExc && tg.cam === 1) {
+    if (isTruck && tg.cam === 1) {
+      const e = tkRig.root.localToWorld(tkRig.eye.clone());
+      cam.position.copy(e);
+      const dir = new THREE.Vector3(Math.sin(camCtl.yaw) * Math.cos(camCtl.pitch), Math.sin(camCtl.pitch), Math.cos(camCtl.yaw) * Math.cos(camCtl.pitch)).applyQuaternion(tkRig.root.quaternion);
+      cam.up.set(0, 1, 0).applyQuaternion(tkRig.root.quaternion);
+      cam.lookAt(e.add(dir));
+      cam.fov = camCtl.fov;
+      s.camInit = false;
+    } else if (isTruck && tg.cam === 2) {
+      const p = tkRig.root.localToWorld(new THREE.Vector3(2.8, 4.6, -10));
+      const look = tkRig.root.localToWorld(new THREE.Vector3(0, 1.6, -2));
+      p.y = Math.max(p.y, heightAt(p.x, p.z) + 1);
+      cam.position.lerp(p, s.camInit ? damp(6, dt) : 1);
+      cam.up.set(0, 1, 0);
+      cam.lookAt(look);
+      cam.fov = 60;
+      s.camInit = true;
+    } else if (isTruck) {
+      const az = truck.yaw + Math.PI + camCtl.yaw;
+      const el = clamp(0.26 + camCtl.pitch, -0.1, 1.3);
+      const d = camCtl.dist;
+      const want = new THREE.Vector3(tgt.x + Math.sin(az) * Math.cos(el) * d, tgt.y + Math.sin(el) * d, tgt.z + Math.cos(az) * Math.cos(el) * d);
+      want.y = Math.max(want.y, heightAt(want.x, want.z) + 0.9);
+      if (!s.camInit) cam.position.copy(want);
+      else cam.position.lerp(want, damp(5, dt));
+      s.camInit = true;
+      cam.up.set(0, 1, 0);
+      cam.lookAt(tgt);
+      cam.fov = 62;
+    } else if (isExc && tg.cam === 1) {
       const e = exRig.house.localToWorld(exRig.eye.clone());
       cam.position.copy(e);
       const dir = new THREE.Vector3(Math.sin(camCtl.yaw) * Math.cos(camCtl.pitch - 0.18), Math.sin(camCtl.pitch - 0.18), Math.cos(camCtl.yaw) * Math.cos(camCtl.pitch - 0.18)).applyQuaternion(exRig.house.getWorldQuaternion(qTmp));
@@ -280,8 +356,8 @@ function Driver() {
       const L = sun.current;
       const moon = new THREE.Vector3(-0.4, 0.8, 0.3).normalize();
       const dir = n > 0.5 ? moon : sunDir;
-      L.position.set(tr.x + dir.x * 80, tr.y + dir.y * 80, tr.z + dir.z * 80);
-      L.target.position.set(tr.x, tr.y, tr.z);
+      L.position.set(fx + dir.x * 80, tgt.y + dir.y * 80, fz + dir.z * 80);
+      L.target.position.set(fx, tgt.y, fz);
       L.target.updateMatrixWorld();
       L.intensity = n > 0.5 ? lerp(0, 0.35, (n - 0.5) * 2) : lerp(2.5, 0, n * 2);
       L.color.set(n > 0.5 ? "#9fb4ff" : "#fff1dc");
@@ -295,14 +371,16 @@ function Driver() {
     fog.far = lerp(900, 320, n);
     gl.toneMappingExposure = lerp(0.9, 0.9, n);
     for (const m of windowMats) m.emissiveIntensity = n * 1.6;
+    for (const m of glassMats) m.emissiveIntensity = n * 1.4;
+    for (const m of glowMats) m.emissiveIntensity = n * 0.75;
 
     // HUD at ~10 Hz
     s.hudT += dt;
     if (s.hudT > 0.1) {
       s.hudT = 0;
       useHud.setState({
-        speed: Math.abs(isExc ? exc.v : tr.v) * 3.6,
-        rpm: isExc ? exc.rpm : tr.rpm,
+        speed: Math.abs(isExc ? exc.v : isTruck ? truck.v : tr.v) * 3.6,
+        rpm: isExc ? exc.rpm : isTruck ? truck.rpm : tr.rpm,
         lift: tr.lift,
         attached: imp.attached,
         working: imp.working,
@@ -310,7 +388,11 @@ function Driver() {
         attachDist: sim.attachDist,
         area: sim.tilledM2,
         surface: SURF_NAMES[tr.surface] ?? "",
-        running: isExc ? exc.running : tr.running,
+        running: isExc ? exc.running : isTruck ? truck.running : tr.running,
+        bed: truck.bed,
+        cargo: truck.cargo,
+        tipping: truck.tipping,
+        tipped: truck.tippedM3,
         bucket: exc.bucketLoad / EX.CAP,
         dug: exc.dugM3,
         phase: exc.auto.on ? PHASE_NAMES[exc.auto.phase] : "",
@@ -327,6 +409,16 @@ function Driver() {
         speed: Math.abs(exc.v),
         rough: 0.7,
         hydraulic: exc.hyd > 0.08 ? (exc.j.boom.v >= 0 ? 1 : -1) : 0,
+      });
+    else if (isTruck)
+      gameAudio.update({
+        rpm: truck.rpm * 1.15,
+        load: truck.load,
+        running: truck.running,
+        working: truck.tipping ? 0.6 : 0,
+        speed: Math.abs(truck.v),
+        rough: truck.surface === SURF.asphalt || truck.surface === SURF.concrete ? 0.2 : 0.8,
+        hydraulic: truck.bedMoving,
       });
     else gameAudio.update({
       rpm: tr.rpm,
@@ -349,6 +441,7 @@ function Driver() {
       <primitive object={rig.root} />
       <primitive object={cult.root} />
       <primitive object={exRig.root} />
+      <primitive object={tkRig.root} />
       <primitive object={exRig.clods} />
       <primitive object={parts.points} />
       <Sky ref={sky as never} distance={4000} turbidity={5} rayleigh={1.4} mieCoefficient={0.004} mieDirectionalG={0.86} sunPosition={[60, 60, 80]} />
@@ -389,6 +482,9 @@ function World() {
       <Suspense fallback={null}>
         <Buildings />
         <Loaded name="buildings" />
+      </Suspense>
+      <Suspense fallback={null}>
+        <Site />
       </Suspense>
       <Suspense fallback={null}>
         <Trees far={high} />
@@ -494,7 +590,7 @@ export default function Game() {
       }
       return { x: exc.x, z: exc.z, dug: exc.dugM3, bucket: exc.bucketLoad, phase: exc.auto.phase, clods: exc.clods.length };
     };
-    (window as unknown as { __game: unknown }).__game = { sim, exc, dig: DIG, toggles: useToggles, hud: useHud, audio: gameAudio, input, camCtl, simulate, simulateExc };
+    (window as unknown as { __game: unknown }).__game = { sim, exc, truck, dig: DIG, toggles: useToggles, hud: useHud, audio: gameAudio, input, camCtl, simulate, simulateExc };
   }, []);
 
   return (

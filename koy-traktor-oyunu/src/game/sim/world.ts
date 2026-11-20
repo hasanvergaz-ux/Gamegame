@@ -54,6 +54,7 @@ export const TRACKS: Pt[][] = [
   [[-62, 46], [-62, 64], [-45, 68], [55, 68], [66, 44], [70, 7]], // yard -> wheat field -> road
   [[-62, 64], [-96, 64], [-98, 52]], // to the west stubble field
   [[120, -10], [122, -62], [118, -70]], // road -> north-east field
+  [[-125, -17.5], [-125, -46]], // main road -> Çakır Hafriyat gate
 ];
 export const TRACK_SEGS = TRACKS.flatMap((t) => polyToSegs(t));
 export const TRACK_HALF = 2.0;
@@ -88,6 +89,15 @@ export const PITS: Pit[] = [
 ];
 
 export const YARD = { x0: -96, z0: 10, x1: -54, z1: 48 };
+
+/** ÇAKIR HAFRİYAT İş Merkezi: fenced construction yard north-west of the village, gate faces the main road. */
+export const SITE = { x0: -150, z0: -84, x1: -100, z1: -46 };
+export const SITE_C = { x: (SITE.x0 + SITE.x1) / 2, z: (SITE.z0 + SITE.z1) / 2 };
+/** the gate opening in the south fence */
+export const GATE = { x0: -131, x1: -119 };
+const GATE_X = (GATE.x0 + GATE.x1) / 2;
+export const MAIN_OFFICE = { x: -134, z: -76, w: 16, d: 8 };
+export const VILLAGE_OFFICE = { x: -112, z: -76, w: 9, d: 6.5 };
 
 // ---------- buildings ----------
 export type House = { x: number; z: number; w: number; d: number; floors: number; tint: number; rot: number; wall: boolean };
@@ -160,6 +170,7 @@ export const PADS: Pad[] = [
   { x: MOSQUE.x, z: MOSQUE.z, hx: 9, hz: 9, rot: MOSQUE.rot },
   { x: -102, z: 19.5, hx: 4.5, hz: 8, rot: 0 },
   { x: (YARD.x0 + YARD.x1) / 2, z: (YARD.z0 + YARD.z1) / 2, hx: (YARD.x1 - YARD.x0) / 2, hz: (YARD.z1 - YARD.z0) / 2, rot: 0 },
+  { x: (SITE.x0 + SITE.x1) / 2, z: (SITE.z0 + SITE.z1) / 2, hx: (SITE.x1 - SITE.x0) / 2 + 1, hz: (SITE.z1 - SITE.z0) / 2 + 1, rot: 0 },
 ];
 
 // ---------- height ----------
@@ -174,6 +185,9 @@ export function baseHeight(x: number, z: number) {
     30 * smoothstep(420, 900, r) * (0.6 + 0.4 * fbm(x * 0.004, z * 0.004, 3))
   );
 }
+
+/** Flat ground level of the whole Çakır Hafriyat yard. */
+export const SITE_Y = baseHeight(SITE_C.x, SITE_C.z);
 
 function padWeight(p: Pad, x: number, z: number) {
   const c = Math.cos(p.rot);
@@ -247,6 +261,7 @@ export function baseSurfaceAt(x: number, z: number): Surface {
   if (tmpN.d < ROAD_HALF) return SURF.asphalt;
   if (tmpN.d < ROAD_HALF + 1.2) return SURF.gravel;
   if (inRect(x, z, YARD)) return SURF.concrete;
+  if (inRect(x, z, SITE)) return SURF.gravel;
   for (const p of PITS) {
     const q = Math.hypot(x - p.x, z - p.z) / p.r;
     if (q < 0.5 && p.mud) return SURF.mud;
@@ -266,6 +281,8 @@ export type Collider =
 export const COLLIDERS: Collider[] = [];
 /** Moving bodies (the parked vehicle you are not driving), rewritten every step. */
 export const DYNAMIC: Collider[] = [];
+/** Body circles of the dump truck (kept apart from DYNAMIC so index order never matters). */
+export const TRUCK_BODY: Collider[] = [];
 const box = (x: number, z: number, w: number, d: number, rot: number) =>
   COLLIDERS.push({ k: "b", x, z, hx: w / 2, hz: d / 2, c: Math.cos(rot), s: Math.sin(rot) });
 for (const h of HOUSES) box(h.x, h.z, h.w + 0.4, h.d + 0.4, h.rot);
@@ -281,6 +298,34 @@ for (const f of FENCES) {
   const L = Math.hypot(f.bx - f.ax, f.bz - f.az);
   box((f.ax + f.bx) / 2, (f.az + f.bz) / 2, 0.2, L, Math.atan2(f.bx - f.ax, f.bz - f.az));
 }
+// ---- Çakır Hafriyat yard: perimeter fence, gate posts, offices, fuel tank, spoil heaps ----
+export type SiteFence = { ax: number; az: number; bx: number; bz: number };
+export const SITE_FENCES: SiteFence[] = [
+  { ax: SITE.x0, az: SITE.z1, bx: GATE.x0, bz: SITE.z1 },
+  { ax: GATE.x1, az: SITE.z1, bx: SITE.x1, bz: SITE.z1 },
+  { ax: SITE.x1, az: SITE.z1, bx: SITE.x1, bz: SITE.z0 },
+  { ax: SITE.x1, az: SITE.z0, bx: SITE.x0, bz: SITE.z0 },
+  { ax: SITE.x0, az: SITE.z0, bx: SITE.x0, bz: SITE.z1 },
+];
+for (const f of SITE_FENCES) {
+  const L = Math.hypot(f.bx - f.ax, f.bz - f.az);
+  box((f.ax + f.bx) / 2, (f.az + f.bz) / 2, 0.3, L, Math.atan2(f.bx - f.ax, f.bz - f.az));
+}
+for (const gx of [GATE.x0, GATE.x1]) COLLIDERS.push({ k: "c", x: gx, z: SITE.z1, r: 0.45 });
+box(MAIN_OFFICE.x, MAIN_OFFICE.z, MAIN_OFFICE.w, MAIN_OFFICE.d, 0);
+box(VILLAGE_OFFICE.x, VILLAGE_OFFICE.z, VILLAGE_OFFICE.w, VILLAGE_OFFICE.d, 0);
+export const FUEL_TANK = { x: -104.5, z: -62, w: 1.9, d: 4.2 };
+box(FUEL_TANK.x, FUEL_TANK.z, FUEL_TANK.w, FUEL_TANK.d, 0);
+export const SPOIL_HEAPS = [
+  { x: -145, z: -50, r: 4.6, h: 2.4 },
+  { x: -105, z: -80, r: 4.2, h: 2.1 },
+];
+for (const h of SPOIL_HEAPS) COLLIDERS.push({ k: "c", x: h.x, z: h.z, r: h.r * 0.6 });
+export const FLAGPOLE = { x: -121, z: -69.5 };
+COLLIDERS.push({ k: "c", x: FLAGPOLE.x, z: FLAGPOLE.z, r: 0.2 });
+export const SITE_LAMPS: [number, number][] = [[-146, -60], [-104, -53], [-116.5, -51.5], [-139, -70]];
+for (const [lx, lz] of SITE_LAMPS) COLLIDERS.push({ k: "c", x: lx, z: lz, r: 0.2 });
+
 // low stone garden walls around some houses (three sides, the road side stays open)
 export type Wall = { x: number; z: number; w: number; d: number; rot: number };
 export const WALLS: Wall[] = [];
@@ -314,6 +359,8 @@ function freeSpot(x: number, z: number, pad: number) {
   nearestOn(TRACK_SEGS, x, z, tmpN);
   if (tmpN.d < TRACK_HALF + 2 + pad) return false;
   if (inRect(x, z, { x0: YARD.x0 - 6, z0: YARD.z0 - 6, x1: YARD.x1 + 6, z1: YARD.z1 + 6 })) return false;
+  if (inRect(x, z, { x0: SITE.x0 - 8, z0: SITE.z0 - 8, x1: SITE.x1 + 8, z1: SITE.z1 + 8 })) return false;
+  if (Math.abs(x - GATE_X) < 6 && z > SITE.z1 - 2 && z < -14) return false;
   for (const f of FIELDS) if (inRect(x, z, { x0: f.x0 - 3, z0: f.z0 - 3, x1: f.x1 + 3, z1: f.z1 + 3 })) return false;
   for (const p of PITS) if (Math.hypot(x - p.x, z - p.z) < p.r + 2) return false;
   for (const c of COLLIDERS) {
@@ -370,8 +417,10 @@ for (const t of TREES) {
 
 // ---------- start positions ----------
 export const START = { x: -70, z: 22, yaw: Math.PI };
-/** The mini excavator starts on open grass east of the farm yard. */
-export const EXC_START = { x: -44, z: 50, yaw: Math.PI / 2 };
+/** The mini excavator is parked in the Çakır Hafriyat yard. */
+export const EXC_START = { x: -141, z: -59, yaw: 0.35 };
+/** The Mercedes-Benz tipper waits in front of the main office, facing the gate. */
+export const TRUCK_START = { x: -124, z: -60, yaw: 0 };
 /** The cultivator starts parked a few meters behind the tractor. */
 export const IMPLEMENT_START = { x: -70, z: 28.0, yaw: Math.PI };
 
@@ -381,6 +430,7 @@ export function isTillable(x: number, z: number) {
   nearestOn(ROAD_SEGS, x, z, tmpN);
   if (tmpN.d < ROAD_HALF + 0.4) return false;
   if (inRect(x, z, YARD)) return false;
+  if (inRect(x, z, { x0: SITE.x0 - 1, z0: SITE.z0 - 1, x1: SITE.x1 + 1, z1: SITE.z1 + 1 })) return false;
   for (const c of COLLIDERS) {
     if (c.k !== "b") continue;
     const dx = x - c.x;

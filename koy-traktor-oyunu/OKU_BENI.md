@@ -51,3 +51,16 @@ Dokular Poly Haven'dan (CC0, serbest kullanım). Traktör modeli ve motor sesi s
 - Sürüş: W/S ileri-geri, A/D dönüş. Kule ← →, bom ↑ ↓, arm E/Q, kova Z/X, bıçak G, kontak K.
 - **Boşluk / OTOMATİK KAZ**: kepçe önündeki toprağı kazar, sola döker; her geçişte çukur derinleşir.
 - Yollar ve bina zeminleri dışında haritadaki tüm toprak kazılabilir; dökülen toprak yığın olur ve traktörle üzerinden geçilebilir.
+
+## Çakır Hafriyat İş Merkezi (şantiye)
+- Köyün kuzey-batısında, ana yoldan ayrılan toprak yolun sonunda çitli bir şantiye alanı. Girişte **ÇAKIR HAFRİYAT – İŞ MERKEZİ** yazılı kapı kemeri var.
+- **İş Merkezi binası** (2 katlı, çatı tabelası "ÇAKIR HAFRİYAT"), yanında **Köy Çalışma Bürosu** (kiremit çatılı, ilan panosu), bayrak direği, motorin tankı, toprak yığınları ve aydınlatma direkleri.
+- Kepçe ve damperli kamyon oyuna şantiyede park halinde başlar. Minimap'te şantiye sarı çerçeveli görünür.
+- **ÇAKIR HAFRİYAT** yazısı traktörün kaputunda, kepçenin iki yanında, kamyonun kapılarında, kasasında ve arka kapağında var.
+
+## Mercedes-Benz damperli kamyon (Actros 8x4)
+- Araç değiştir: **V** (Traktör → Kepçe → Kamyon) ya da adreste `?arac=kamyon`.
+- Sürüş: W/S gaz-fren, A/D direksiyon, R ileri/geri vites, K kontak, **E damperi kaldır, Q indir**, H korna, L far, B çakar, C kamera.
+- Yükleme: kamyonu kepçenin **sol yanına**, yan yana park et (aralarında yaklaşık 1,5 m) ve kepçede **Boşluk** ile otomatik kazıyı başlat; toprak doğrudan kasaya dolar (kapasite 8 m³).
+- Boşaltma: motor çalışırken damperi kaldır; 24°'yi geçince toprak arka kapaktan akar. Kamyonu yavaşça ileri sürersen toprak serilir.
+- Kodu: `src/game/sim/truck.ts` (fizik, testi `truck.test.ts`), `src/game/scene/Truck.tsx` (model), `src/game/scene/Site.tsx` (şantiye), `src/game/scene/signs.ts` (yazı levhaları).

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 export type CamMode = 0 | 1 | 2; // 0 = chase, 1 = cab, 2 = rear hitch view / bucket view
-export type Vehicle = "tractor" | "excavator";
+export type Vehicle = "tractor" | "excavator" | "truck";
 
 export type Toggles = {
   cam: CamMode;
@@ -17,10 +17,12 @@ export type Toggles = {
   vehicle: Vehicle;
   /** excavator ignition (the tractor's is `engine`) */
   excEngine: boolean;
+  /** dump truck ignition */
+  truckEngine: boolean;
   bladeDown: boolean;
 };
 
-type FlipKey = "head" | "work" | "beacon" | "engine" | "excEngine" | "bladeDown" | "night" | "hood" | "help";
+type FlipKey = "head" | "work" | "beacon" | "engine" | "excEngine" | "truckEngine" | "bladeDown" | "night" | "hood" | "help";
 type ToggleStore = Toggles & { set: (p: Partial<Toggles>) => void; flip: (k: FlipKey) => void };
 
 function initialQuality(): "high" | "low" {
@@ -32,7 +34,8 @@ function initialQuality(): "high" | "low" {
 
 function initialVehicle(): Vehicle {
   if (typeof window === "undefined") return "tractor";
-  return new URLSearchParams(window.location.search).get("arac") === "kepce" ? "excavator" : "tractor";
+  const a = new URLSearchParams(window.location.search).get("arac");
+  return a === "kepce" ? "excavator" : a === "kamyon" ? "truck" : "tractor";
 }
 
 export const useToggles = create<ToggleStore>((set) => ({
@@ -48,6 +51,7 @@ export const useToggles = create<ToggleStore>((set) => ({
   quality: initialQuality(),
   vehicle: initialVehicle(),
   excEngine: false,
+  truckEngine: false,
   bladeDown: false,
   set: (p) => set(p),
   flip: (k) => set((s) => ({ [k]: !s[k] }) as Partial<Toggles>),
@@ -73,6 +77,11 @@ export type Hud = {
   phase: string;
   auto: boolean;
   inSoil: boolean;
+  // dump truck
+  bed: number;
+  cargo: number;
+  tipping: boolean;
+  tipped: number;
 };
 
 export const useHud = create<Hud>(() => ({
@@ -94,6 +103,10 @@ export const useHud = create<Hud>(() => ({
   phase: "",
   auto: false,
   inSoil: false,
+  bed: 0,
+  cargo: 0,
+  tipping: false,
+  tipped: 0,
 }));
 
 export const toast = (msg: string) => useHud.setState({ toast: msg, toastT: Date.now() });

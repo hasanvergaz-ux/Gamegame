@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { exc, sim } from "../runtime";
+import { exc, sim, truck } from "../runtime";
+import { SITE } from "../sim/world";
 import { mask } from "../scene/shared";
 import { DIG } from "../sim/dig";
 import { useToggles } from "../store";
@@ -89,9 +90,13 @@ export function Minimap() {
         og.putImageData(img, 0, 0);
       }
       const { imp } = sim;
-      const isExc = useToggles.getState().vehicle === "excavator";
-      const tr = isExc ? { x: exc.x, z: exc.z, yaw: exc.yaw } : sim.tr;
-      const other = isExc ? sim.tr : exc;
+      const veh = useToggles.getState().vehicle;
+      const all = {
+        tractor: { x: sim.tr.x, z: sim.tr.z, yaw: sim.tr.yaw, color: "#f0ae1c", w: 6, l: 8 },
+        excavator: { x: exc.x, z: exc.z, yaw: exc.yaw, color: "#4fb34a", w: 5, l: 7 },
+        truck: { x: truck.x + Math.sin(truck.yaw) * 2.5, z: truck.z + Math.cos(truck.yaw) * 2.5, yaw: truck.yaw, color: "#2f6fdf", w: 6, l: 13 },
+      };
+      const tr = all[veh];
       const sc = S / SPAN;
       c.clearRect(0, 0, S, S);
       c.save();
@@ -105,25 +110,35 @@ export function Minimap() {
       c.imageSmoothingEnabled = true;
       c.drawImage(bg, -MAP_SIZE / 2, -MAP_SIZE / 2, MAP_SIZE, MAP_SIZE);
       c.drawImage(ov, -MAP_SIZE / 2, -MAP_SIZE / 2, MAP_SIZE, MAP_SIZE);
-      if (!imp.attached) {
+      // Çakır Hafriyat yard
+      c.fillStyle = "rgba(16,36,61,0.55)";
+      c.fillRect(SITE.x0, SITE.z0, SITE.x1 - SITE.x0, SITE.z1 - SITE.z0);
+      c.strokeStyle = "#f4b400";
+      c.lineWidth = 2.2 / sc;
+      c.strokeRect(SITE.x0, SITE.z0, SITE.x1 - SITE.x0, SITE.z1 - SITE.z0);
+      if (!sim.imp.attached) {
         c.fillStyle = "#ff5a2a";
         c.beginPath();
-        c.arc(imp.x, imp.z, 3.2, 0, Math.PI * 2);
+        c.arc(sim.imp.x, sim.imp.z, 3.2, 0, Math.PI * 2);
         c.fill();
       }
-      // the parked vehicle
-      c.save();
-      c.translate(other.x, other.z);
-      c.rotate(-other.yaw);
-      c.fillStyle = isExc ? "#4fb34a" : "#f0ae1c";
-      c.strokeStyle = "#1a1a1a";
-      c.lineWidth = 1.2 / sc;
-      c.fillRect(-3, -4, 6, 8);
-      c.strokeRect(-3, -4, 6, 8);
-      c.restore();
+      // the parked vehicles
+      for (const k of ["tractor", "excavator", "truck"] as const) {
+        if (k === veh) continue;
+        const o = all[k];
+        c.save();
+        c.translate(o.x, o.z);
+        c.rotate(-o.yaw);
+        c.fillStyle = o.color;
+        c.strokeStyle = "#1a1a1a";
+        c.lineWidth = 1.2 / sc;
+        c.fillRect(-o.w / 2, -o.l / 2, o.w, o.l);
+        c.strokeRect(-o.w / 2, -o.l / 2, o.w, o.l);
+        c.restore();
+      }
       c.restore();
       // your vehicle
-      c.fillStyle = isExc ? "#f0ae1c" : "#ffd23a";
+      c.fillStyle = "#ffd23a";
       c.strokeStyle = "#1a1a1a";
       c.lineWidth = 1.5;
       c.beginPath();

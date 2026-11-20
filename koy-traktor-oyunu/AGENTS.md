@@ -44,3 +44,9 @@ use the editor.
 - Dig rules (carving, deposits, repose, auto cycle) stay in plain TS under `src/game/sim/`; the GPU only reads the packed dig texture via `uploadDig`. Why: volume conservation is unit-tested without a renderer.
 - The fine terrain patch follows the active vehicle; the coarse mesh discards inside it. Why: 0.5 m dig detail without a 1200²-vertex terrain.
 - Dev hooks: `window.__game.exc`, `.dig`, `.camCtl`, `.simulateExc(seconds, input)`; `?arac=kepce` starts in the excavator.
+
+## Truck & Çakır Hafriyat yard
+- Truck rules live in `src/game/sim/truck.ts` (origin = rear tandem centre, +X = left). Its body circles go into `TRUCK_BODY` (world.ts), which tractor and excavator collide with; the truck collides with `COLLIDERS`, `DYNAMIC` (excavator) and the tractor.
+- Excavator clods call `clodSinks` (excavator.ts) before landing; `runtime.ts` registers `bedSink(truck)` so soil dropped over the lowered bed becomes cargo. Tipping deposits into `DIG` behind the tailgate.
+- The yard (`SITE`, `GATE`, offices, fence, props) is defined in `world.ts` (layout, pads, colliders) and drawn in `scene/Site.tsx`. All lettering is canvas-drawn in `scene/signs.ts` (`companyPlate`); night glow lists are `glowMats` / `glassMats`.
+- `excavator.test.ts` uses an open-grass start because `EXC_START` is now inside the yard.

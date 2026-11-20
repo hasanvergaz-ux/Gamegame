@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { DIG } from "./dig";
 import { EX, createExcavator, soilInFlight, stepExcavator, type ExInput, type Excavator } from "./excavator";
 import { createSim, stepSim } from "./tractor";
-import { EXC_START, heightAt, roadZ, staticHeightAt } from "./world";
+import { heightAt, roadZ, staticHeightAt } from "./world";
+
+/** open grass east of the farm yard (the excavator itself now starts inside the Çakır Hafriyat yard) */
+const EXC_START = { x: -44, z: 50, yaw: Math.PI / 2 };
 
 const idle = (): ExInput => ({ drive: 0, turn: 0, swing: 0, boom: 0, stick: 0, bucket: 0, bladeDown: false, engineOn: true, autoToggle: false });
 

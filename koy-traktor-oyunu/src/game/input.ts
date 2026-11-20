@@ -38,21 +38,22 @@ export function cycleCamera() {
   camCtl.pitch = 0;
 }
 
-/** Jump between the tractor and the mini excavator. */
+/** Jump tractor -> excavator -> dump truck -> tractor. */
+export const VEHICLE_ORDER = ["tractor", "excavator", "truck"] as const;
 export function switchVehicle() {
   const s = useToggles.getState();
-  const next = s.vehicle === "tractor" ? "excavator" : "tractor";
+  const next = VEHICLE_ORDER[(VEHICLE_ORDER.indexOf(s.vehicle) + 1) % VEHICLE_ORDER.length]!;
   s.set({ vehicle: next, cam: 0 });
   camCtl.yaw = 0;
   camCtl.pitch = next === "excavator" ? 0.12 : 0;
-  camCtl.dist = next === "excavator" ? 12 : 11;
+  camCtl.dist = next === "excavator" ? 12 : next === "truck" ? 17 : 11;
   for (const k of Object.keys(input) as (keyof typeof input)[]) input[k] = false;
 }
 
 /** Ignition of whichever vehicle you are in. */
 export function toggleEngine() {
   const s = useToggles.getState();
-  s.flip(s.vehicle === "excavator" ? "excEngine" : "engine");
+  s.flip(s.vehicle === "excavator" ? "excEngine" : s.vehicle === "truck" ? "truckEngine" : "engine");
 }
 
 export function toggleDirection() {

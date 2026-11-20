@@ -8,6 +8,7 @@ import { DIG } from "./dig";
 import {
   COLLIDERS,
   DYNAMIC,
+  TRUCK_BODY,
   IMPLEMENT_START,
   MAP_LIMIT,
   START,
@@ -147,7 +148,7 @@ export function surfaceAt(sim: Sim, x: number, z: number): Surface {
   return sim.mask.tilledAt(x, z) > 0.5 ? SURF.tilled : s;
 }
 
-const COLLIDER_LISTS = [DYNAMIC, COLLIDERS];
+const COLLIDER_LISTS = [DYNAMIC, TRUCK_BODY, COLLIDERS];
 
 function collide(sim: Sim, lz: number, r: number) {
   const tr = sim.tr;

@@ -9,6 +9,7 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 import { EX, armAngles, type Excavator } from "../sim/excavator";
 import { clamp, lerp } from "../sim/math";
 import type { Toggles } from "../store";
+import { companyPlate } from "./signs";
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const UP = V(0, 1, 0);
@@ -311,6 +312,13 @@ export function useExcavatorRig(): ExcavatorRig {
     dR.rotation.y = -Math.PI / 2;
     const dL = mesh(decalGeo, M.decal, house, 0.824, 0.36, -0.3);
     dL.rotation.y = Math.PI / 2;
+    // company name on both sides of the house
+    for (const side of [1, -1]) {
+      const cp = companyPlate(0.62, 0.115);
+      cp.position.set(side * 0.826, 0.17, -0.12);
+      cp.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2;
+      house.add(cp);
+    }
     const w1 = mesh(new THREE.PlaneGeometry(0.07, 0.07), M.warn, house, -0.766, 0.85, 0.25);
     w1.rotation.y = -Math.PI / 2;
     // swing bracket and boom foot

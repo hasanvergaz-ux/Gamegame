@@ -7,8 +7,8 @@
 - [ ] Weather: clear / rain / snow chosen in-game; mud slows & slides vehicles, snow cover
 - [ ] Unlimited dig depth
 - [ ] Ford Transit style open-bed pickup that can be loaded with soil and tip it
-- [ ] Big dump truck (damperli kamyon) that can be loaded and tip
+- [x] Big dump truck (Mercedes-Benz Actros 8x4 tipper) that can be loaded by the excavator and tip
 - [ ] JCB 3CX style backhoe loader (front loader + rear backhoe), modelled carefully
-- [ ] "ÇAKIR HAFRİYAT" text on every machine
-- [ ] Construction site area (şantiye) with "ÇAKIR HAFRİYAT" sign
-- [ ] Vehicle switch handles all vehicles
+- [x] "ÇAKIR HAFRİYAT" text on every machine (tractor, excavator, truck)
+- [x] Construction site area (şantiye) with "ÇAKIR HAFRİYAT" sign, head office and Köy Çalışma Bürosu
+- [x] Vehicle switch handles tractor, excavator and truck

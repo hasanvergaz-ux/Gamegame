@@ -48,20 +48,23 @@ function Toggle({ on, onClick, icon, label }: { on?: boolean; onClick: () => voi
   );
 }
 
+const VEH_NAME = { tractor: "🚜 Traktör", excavator: "🏗️ Kepçe", truck: "🚚 Mercedes Damper" } as const;
+const VEH_NEXT = { tractor: "Kepçeye geç", excavator: "Damperli kamyona geç", truck: "Traktöre geç" } as const;
+
 function VehicleSwitch() {
   const v = useToggles((s) => s.vehicle);
   return (
     <button
       type="button"
       className="hud-switch"
-      aria-label={v === "tractor" ? "Kepçeye geç" : "Traktöre geç"}
+      aria-label={VEH_NEXT[v]}
       onClick={() => {
         gameAudio.unlock();
         switchVehicle();
       }}
     >
-      <span className="hud-switch-now">{v === "tractor" ? "🚜 Traktör" : "🏗️ Kepçe"}</span>
-      <span className="hud-switch-go">⇄ {v === "tractor" ? "Kepçeye geç" : "Traktöre geç"} <kbd>V</kbd></span>
+      <span className="hud-switch-now">{VEH_NAME[v]}</span>
+      <span className="hud-switch-go">⇄ {VEH_NEXT[v]} <kbd>V</kbd></span>
     </button>
   );
 }
@@ -70,11 +73,12 @@ function TopBar() {
   const t = useToggles();
   const [hornOn, setHornOn] = useState(false);
   const exc = t.vehicle === "excavator";
+  const truck = t.vehicle === "truck";
   const camNames = exc ? ["Dış", "Kabin", "Yan"] : ["Dış", "Kabin", "Arka"];
   return (
     <div className="hud-bar">
       <Toggle on={t.cam !== 0} onClick={cycleCamera} icon="📷" label={camNames[t.cam]!} />
-      <Toggle on={exc ? t.excEngine : t.engine} onClick={toggleEngine} icon="🔑" label="Kontak" />
+      <Toggle on={exc ? t.excEngine : truck ? t.truckEngine : t.engine} onClick={toggleEngine} icon="🔑" label="Kontak" />
       <Toggle on={t.head} onClick={() => t.flip("head")} icon="💡" label="Far" />
       <Toggle on={t.work} onClick={() => t.flip("work")} icon="🔦" label="İş lambası" />
       <Toggle on={t.beacon} onClick={() => t.flip("beacon")} icon="🚨" label="Çakar" />
@@ -99,7 +103,7 @@ function TopBar() {
         <i>📯</i>Korna
       </button>
       <Toggle on={t.night} onClick={() => t.flip("night")} icon="🌙" label="Gece" />
-      {!exc && <Toggle on={t.hood} onClick={() => t.flip("hood")} icon="🔧" label="Kaput" />}
+      {t.vehicle === "tractor" && <Toggle on={t.hood} onClick={() => t.flip("hood")} icon="🔧" label="Kaput" />}
       <Toggle on={t.quality === "high"} onClick={() => t.set({ quality: t.quality === "high" ? "low" : "high" })} icon="✨" label={t.quality === "high" ? "Yüksek" : "Düşük"} />
       <Toggle onClick={() => (input.resetPressed = true)} icon="↺" label="Başa dön" />
       <Toggle on={t.help} onClick={() => t.flip("help")} icon="?" label="Tuşlar" />
@@ -140,6 +144,73 @@ function ExcGauges() {
   );
 }
 
+function TruckGauges() {
+  const h = useHud();
+  const dir = useToggles((s) => s.dir);
+  const pct = Math.round((h.cargo / 8) * 100);
+  return (
+    <div className="hud-panel hud-gauges">
+      <div className="hud-speed">
+        <b>{Math.round(h.speed)}</b>
+        <small>km/sa</small>
+        <span className="hud-gear" data-rev={dir < 0}>{dir > 0 ? "İLERİ" : "GERİ"}</span>
+      </div>
+      <div className="hud-row">
+        <span>Devir</span>
+        <div className="hud-meter"><div style={{ width: `${Math.min(100, (h.rpm / 1900) * 100)}%` }} /></div>
+        <em>{Math.round(h.rpm)}</em>
+      </div>
+      <div className="hud-row">
+        <span>Damper</span>
+        <div className="hud-meter hud-meter-lift"><div style={{ width: `${Math.round(h.bed * 100)}%` }} /></div>
+        <em>{h.bed < 0.03 ? "İNİK" : `${Math.round(h.bed * 54)}°`}</em>
+      </div>
+      <div className="hud-row">
+        <span>Yük</span>
+        <div className="hud-meter hud-meter-soil"><div style={{ width: `${pct}%` }} /></div>
+        <em>%{pct}</em>
+      </div>
+      <div className="hud-status">
+        <span data-state={h.tipping ? "work" : h.cargo > 0.05 ? "on" : "off"}>
+          {h.tipping ? "● Boşaltıyor" : h.cargo > 0.05 ? `${h.cargo.toFixed(1)} m³ toprak` : h.running ? "Boş" : "Motor kapalı"}
+        </span>
+        <span>{h.surface}</span>
+      </div>
+      <div className="hud-area">
+        Boşaltılan toprak: <b>{h.tipped.toFixed(1)}</b> m³
+      </div>
+    </div>
+  );
+}
+
+function TruckControls({ dir }: { dir: number }) {
+  return (
+    <>
+      <div className="hud-steer">
+        <HoldButton k="left" label="Sola" className="hud-pad">◀</HoldButton>
+        <HoldButton k="right" label="Sağa" className="hud-pad">▶</HoldButton>
+      </div>
+      <div className="hud-hitch">
+        <HoldButton k="liftUp" label="Damperi kaldır" className="hud-btn hud-btn-wide">
+          <i>▲</i>DAMPER KALDIR
+        </HoldButton>
+        <HoldButton k="liftDown" label="Damperi indir" className="hud-btn hud-btn-wide">
+          <i>▼</i>DAMPER İNDİR
+        </HoldButton>
+      </div>
+      <div className="hud-pedals">
+        <button type="button" className="hud-btn hud-gearbtn" data-on={dir < 0} onClick={() => { gameAudio.unlock(); toggleDirection(); }}>
+          İLERİ ⇄ GERİ
+        </button>
+        <div className="hud-pedal-row">
+          <HoldButton k="brake" label="Fren" className="hud-pedal hud-pedal-brake">FREN</HoldButton>
+          <HoldButton k="gas" label="Gaz" className="hud-pedal hud-pedal-gas">GAZ</HoldButton>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function Gauges() {
   const h = useHud();
   const dir = useToggles((s) => s.dir);
@@ -177,6 +248,7 @@ function Gauges() {
 function Prompt() {
   const h = useHud();
   const exc = useToggles((s) => s.vehicle === "excavator");
+  const truck = useToggles((s) => s.vehicle === "truck");
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 400);
@@ -184,8 +256,13 @@ function Prompt() {
   }, []);
   let msg = "";
   if (now - h.toastT < 3500 && h.toast) msg = h.toast;
-  else if (!h.running && h.ready) msg = exc ? "Kepçedesin — önce 🔑 Kontak'a bas (K)" : "Önce 🔑 Kontak'a bas (K)";
-  else if (exc) {
+  else if (!h.running && h.ready) msg = exc ? "Kepçedesin — önce 🔑 Kontak'a bas (K)" : truck ? "Kamyondasın — önce 🔑 Kontak'a bas (K)" : "Önce 🔑 Kontak'a bas (K)";
+  else if (truck) {
+    if (h.tipping) msg = "Toprak akıyor — kamyonu yavaşça ileri sür, sonra damperi indir (Q)";
+    else if (h.cargo > 7.9) msg = "Kamyon dolu — hafriyatı boşaltmak için damperi kaldır (E)";
+    else if (h.cargo < 0.05) msg = "Toprak yüklemek için kamyonu kepçenin SOL yanına, yan yana park et — Otomatik kazı doğrudan kasaya döker";
+    else msg = `Yük: ${h.cargo.toFixed(1)} m³ — damperi kaldırmak için E, indirmek için Q`;
+  } else if (exc) {
     if (h.auto) msg = `⛏ Otomatik kazı: ${h.phase}`;
     else if (h.bucket > 0.95) msg = "Kova dolu — kuleyi çevir (← →) ve X ile boşalt";
     else if (h.dug < 0.05) msg = "⛏ OTOMATİK KAZ (Boşluk) · ya da ↑↓ bom · E/Q arm · Z/X kova · ←→ kule";
@@ -200,12 +277,19 @@ function Prompt() {
 function Help() {
   const help = useToggles((s) => s.help);
   if (!help) return null;
-  const exc = useToggles.getState().vehicle === "excavator";
-  const rows: [string, string][] = exc
+  const veh = useToggles.getState().vehicle;
+  const exc = veh === "excavator";
+  const rows: [string, string][] = veh === "truck"
+    ? [
+        ["W / ↑", "Gaz"], ["S / ↓ / Boşluk", "Fren"], ["A D / ← →", "Direksiyon"], ["R", "İleri ⇄ Geri"],
+        ["K", "Kontak"], ["E", "Damperi kaldır (boşalt)"], ["Q", "Damperi indir"],
+        ["H", "Korna"], ["L", "Far"], ["B", "Çakar"], ["N", "Gece"], ["C", "Kamera"], ["V", "Traktöre geç"],
+      ]
+    : exc
     ? [
         ["W / S", "Paletler ileri / geri"], ["A / D", "Sola / sağa dön"], ["← / →", "Kuleyi döndür"], ["↑ / ↓", "Bomu kaldır / indir"],
         ["E / Q", "Armı aç / topla"], ["Z / X", "Kovayı kapat / aç (boşalt)"], ["Boşluk", "Otomatik kazı aç / kapat"], ["G", "Bıçağı indir / kaldır"],
-        ["K", "Kontak"], ["V", "Traktöre geç"], ["H", "Korna"], ["J / L", "Lambalar"], ["B", "Çakar"], ["N", "Gece"], ["C", "Kamera"],
+        ["K", "Kontak"], ["V", "Kamyona geç"], ["H", "Korna"], ["J / L", "Lambalar"], ["B", "Çakar"], ["N", "Gece"], ["C", "Kamera"],
       ]
     : [
         ["W / ↑", "Gaz"], ["S / ↓ / Boşluk", "Fren"], ["A D / ← →", "Direksiyon"], ["R", "İleri ⇄ Geri"],
@@ -214,7 +298,7 @@ function Help() {
       ];
   return (
     <div className="hud-panel hud-help" onClick={() => useToggles.getState().flip("help")}>
-      <h3>{exc ? "Kepçe tuşları" : "Traktör tuşları"}</h3>
+      <h3>{veh === "truck" ? "Damperli kamyon tuşları" : exc ? "Kepçe tuşları" : "Traktör tuşları"}</h3>
       {rows.map(([k, v]) => (
         <div key={k}>
           <kbd>{k}</kbd>
@@ -239,8 +323,8 @@ function Loading() {
   if (gone) return null;
   return (
     <div className="hud-loading" data-done={ready}>
-      <h1>Köy Traktör &amp; Kepçe Simülatörü</h1>
-      <p>Arazi, köy, traktör ve kepçe yükleniyor…</p>
+      <h1>Köy Traktör, Kepçe &amp; Çakır Hafriyat</h1>
+      <p>Arazi, köy, Çakır Hafriyat şantiyesi, traktör, kepçe ve kamyon yükleniyor…</p>
       <div className="hud-spinner" />
     </div>
   );
@@ -314,16 +398,17 @@ function ExcControls() {
 
 export function Hud() {
   const dir = useToggles((s) => s.dir);
-  const exc = useToggles((s) => s.vehicle === "excavator");
+  const veh = useToggles((s) => s.vehicle);
+  const exc = veh === "excavator";
   return (
     <>
       <VehicleSwitch />
       <TopBar />
-      {exc ? <ExcGauges /> : <Gauges />}
+      {veh === "truck" ? <TruckGauges /> : exc ? <ExcGauges /> : <Gauges />}
       <Minimap />
       <Prompt />
       <Help />
-      {exc ? <ExcControls /> : <TractorControls dir={dir} />}
+      {veh === "truck" ? <TruckControls dir={dir} /> : exc ? <ExcControls /> : <TractorControls dir={dir} />}
       <Loading />
     </>
   );

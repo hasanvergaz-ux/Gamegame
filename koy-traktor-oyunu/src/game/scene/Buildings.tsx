@@ -33,7 +33,7 @@ class Builder {
 }
 
 /** Box with UVs in meters / tile, so textures keep real-world scale on every face. */
-function boxM(w: number, h: number, d: number, tile = 2) {
+export function boxM(w: number, h: number, d: number, tile = 2) {
   const g = new THREE.BoxGeometry(w, h, d);
   const uv = g.attributes.uv as THREE.BufferAttribute;
   const dims: [number, number][] = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
@@ -45,7 +45,7 @@ function boxM(w: number, h: number, d: number, tile = 2) {
   return g;
 }
 
-function planeM(w: number, h: number, tile: number) {
+export function planeM(w: number, h: number, tile: number) {
   const g = new THREE.PlaneGeometry(w, h);
   const uv = g.attributes.uv as THREE.BufferAttribute;
   for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * w) / tile, (uv.getY(i) * h) / tile);

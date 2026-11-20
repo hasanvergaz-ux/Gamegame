@@ -3,6 +3,7 @@
 import { useGLTF } from "@react-three/drei";
 import { useMemo } from "react";
 import * as THREE from "three";
+import { companyPlate } from "./signs";
 import { asset } from "../assets";
 import { HITCH, IMPL, hitchPoint, lowerAngle } from "../sim/hitch";
 import { clamp, lerp } from "../sim/math";
@@ -186,6 +187,20 @@ export function useTractorRig(sim: Sim) {
     work.position.set(0, 2.75, -1.6);
     work.target.position.set(0, -1.5, -9);
     root.add(tail, beacon, work, work.target);
+
+    // "ÇAKIR HAFRİYAT" plates on both sides of the hood
+    const hoodObj = model.getObjectByName("Hinge_Hood");
+    if (hoodObj) {
+      const hbx = box(hoodObj);
+      const len = hbx.max.z - hbx.min.z;
+      const pw = Math.min(1.1, len * 0.72);
+      for (const s of [-1, 1]) {
+        const cp = companyPlate(pw, pw / 5.6);
+        cp.position.set(s > 0 ? hbx.max.x + 0.012 : hbx.min.x - 0.012, hbx.min.y + (hbx.max.y - hbx.min.y) * 0.42, (hbx.min.z + hbx.max.z) / 2);
+        cp.rotation.y = s > 0 ? Math.PI / 2 : -Math.PI / 2;
+        root.add(cp);
+      }
+    }
 
     const mf = matBox("muffler_steel");
     const exhaust = V((mf.min.x + mf.max.x) / 2, mf.max.y, (mf.min.z + mf.max.z) / 2);

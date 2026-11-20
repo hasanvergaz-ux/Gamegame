@@ -6,7 +6,7 @@
 import { DIG } from "./dig";
 import { clamp, damp, lerp, mulberry32 } from "./math";
 import { TR, toWorld } from "./tractor";
-import { COLLIDERS, DYNAMIC, EXC_START, MAP_LIMIT, heightAt, type Collider } from "./world";
+import { COLLIDERS, DYNAMIC, EXC_START, MAP_LIMIT, TRUCK_BODY, heightAt, type Collider } from "./world";
 
 export const EX = {
   TRACK_HALF: 0.66, // track centre line to machine centre
@@ -214,6 +214,9 @@ function pushOut(ex: Excavator, cx: number, cz: number, r: number, list: readonl
   return hit;
 }
 
+/** Places that catch falling soil before it reaches the ground (the dump truck's bed). Return true to swallow the clod. */
+export const clodSinks: Array<(c: Clod) => boolean> = [];
+
 const tractorCircles: Collider[] = TR.BODY_CIRCLES.map(() => ({ k: "c", x: 0, z: 0, r: TR.BODY_R }));
 
 // ---------------- automatic dig cycle ----------------
@@ -364,6 +367,7 @@ export function stepExcavator(ex: Excavator, inp: ExInput, dtIn: number, tractor
     const cx = ex.x + Math.sin(ex.yaw) * lz;
     const cz = ex.z + Math.cos(ex.yaw) * lz;
     hit = pushOut(ex, cx, cz, EX.BODY_R, COLLIDERS) || hit;
+    hit = pushOut(ex, cx, cz, EX.BODY_R, TRUCK_BODY) || hit;
     if (tractor) hit = pushOut(ex, ex.x + Math.sin(ex.yaw) * lz, ex.z + Math.cos(ex.yaw) * lz, EX.BODY_R, tractorCircles) || hit;
   }
   if (hit) {
@@ -500,6 +504,14 @@ export function stepExcavator(ex: Excavator, inp: ExInput, dtIn: number, tractor
     c.y += c.vy * dt;
     c.z += c.vz * dt;
     c.spin += dt * 5;
+    let caught = false;
+    for (const sink of clodSinks) if (sink(c)) { caught = true; break; }
+    if (caught) {
+      ex.dumpedM3 += c.vol;
+      ex.clods[i] = ex.clods[ex.clods.length - 1]!;
+      ex.clods.pop();
+      continue;
+    }
     const g = heightAt(c.x, c.z);
     if (c.y <= g) {
       DIG.deposit(c.x, c.z, c.vol, 0.42);
