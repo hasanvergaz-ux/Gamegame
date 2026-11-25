@@ -387,7 +387,7 @@ rep("        case `KeyR`:\n          n || dC();", "        case `KeyR`:\n       
 # collisions
 rep(
     "Qw = [dw, uw, TKC];",
-    "JBC = [0, 1, 2].map(() => ({ k: `c`, x: 1e9, z: 1e9, r: 1.2 })),\n  Qw = [dw, uw, TKC, JBC];",
+    "JBC = [0, 1, 2].map(() => ({ k: `c`, x: 1e9, z: 1e9, r: 1.2 })),\n  Qw = [dw, uw, TKC, JBC, COC];",
 )
 rep(
     "Q.BODY_R, TKC) ||\n        c));",
@@ -1228,6 +1228,1678 @@ cut(
     }
   })(),
 """,
+)
+
+# =====================================================================
+# ---- Chakir Company Compound + Authentic Turkish Village + Ambient Audio + 60 FPS
+ccore = open(os.path.join(SRC, "company-core.js")).read()
+crender = open(os.path.join(SRC, "company-render.js")).read()
+vturk = open(os.path.join(SRC, "village-turkish.js")).read()
+
+# Fix original HT() roof symmetry bug (-PI/2 + s * m double-negated the s=-1 roof plane on every house & barn)
+rep(
+    "      g = new K().makeRotationX(-Math.PI / 2 + s * m);",
+    "      g = new K().makeRotationX(-Math.PI / 2 + m);",
+)
+
+# Inject core modules before mw() so QC + uw walls/columns/pinars are ready before tree/terrain/grass generation
+rep("function mw(e, t, n) {", ccore + "\n" + vturk + "\nfunction mw(e, t, n) {")
+rep(
+    "  if (cw(e, t, VC)) return iw.concrete;",
+    "  if (cw(e, t, VC) || coInPad(e, t)) return iw.concrete;\n  if (coInYard(e, t) || coInDrive(e, t)) return iw.gravel;",
+)
+rep(
+    "    cw(e, t, VC)\n  )",
+    "    cw(e, t, VC) ||\n    coNoDig(e, t)\n  )",
+)
+rep(
+    "      cw(e, t, { x0: VC.x0 - 6, z0: VC.z0 - 6, x1: VC.x1 + 6, z1: VC.z1 + 6 }))",
+    "      cw(e, t, { x0: VC.x0 - 6, z0: VC.z0 - 6, x1: VC.x1 + 6, z1: VC.z1 + 6 }) ||\n      coNoTree(e, t))",
+)
+# Park Tractor, Excavator & Cultivator inside the Chakir company compound
+rep(
+    "var hw = { x: -70, z: 22, yaw: Math.PI },\n  gw = { x: -44, z: 50, yaw: Math.PI / 2 },\n  _w = { x: -70, z: 28, yaw: Math.PI };",
+    "var hw = { x: -73, z: -43.5, yaw: 0 },\n  gw = { x: -89.5, z: -43, yaw: Math.PI / 2 },\n  _w = { x: -73, z: -49.5, yaw: 0 };",
+)
+
+# Terrain shader: Chakir compound gravel yard, driveway, concrete pad & gate apron
+rep(
+    "      uYard: { value: new rr(VC.x0, VC.z0, VC.x1, VC.z1) },",
+    """      uYard: { value: new rr(VC.x0, VC.z0, VC.x1, VC.z1) },
+      uCompYard: { value: new rr(CO_BOX.x0, CO_BOX.z0, CO_BOX.x1, CO_BOX.z1) },
+      uCompPad: { value: new rr(CO_PAD.x0, CO_PAD.z0, CO_PAD.x1, CO_PAD.z1) },
+      uCompApron: { value: new rr(CO_APRON.x0, CO_APRON.z0, CO_APRON.x1, CO_APRON.z1) },
+      uCompDrive: { value: new rr(-78.5, -24.0, -68.5, -8.5) },""",
+)
+rep(
+    "uniform vec4 uYard;",
+    "uniform vec4 uYard;\nuniform vec4 uCompYard;\nuniform vec4 uCompPad;\nuniform vec4 uCompApron;\nuniform vec4 uCompDrive;",
+)
+rep(
+    "// farm yard concrete\n{\n  vec2 dd = max(uYard.xy - P, P - uYard.zw);\n  float wY = 1.0 - smoothstep(-0.25, 0.25, max(dd.x, dd.y));\n  BLEND(wY, 7.0, 4.0, 0.85, vec3(0.95))\n}",
+    """// farm yard concrete
+{
+  vec2 dd = max(uYard.xy - P, P - uYard.zw);
+  float wY = 1.0 - smoothstep(-0.25, 0.25, max(dd.x, dd.y));
+  BLEND(wY, 7.0, 4.0, 0.85, vec3(0.95))
+}
+// Chakir company compound: gravel yard, driveway, garage concrete pad & gate apron
+{
+  vec2 dy = max(uCompYard.xy - P, P - uCompYard.zw);
+  float wCY = 1.0 - smoothstep(-0.3, 0.3, max(dy.x, dy.y));
+  BLEND(wCY, 5.0, 2.2, 0.94, vec3(0.92, 0.72, 0.56))
+  vec2 ddr = max(uCompDrive.xy - P, P - uCompDrive.zw);
+  float wCD = 1.0 - smoothstep(-0.4, 0.5, max(ddr.x, ddr.y));
+  BLEND(wCD, 5.0, 2.4, 0.94, vec3(1.02, 0.9, 0.8))
+  vec2 dpad = max(uCompPad.xy - P, P - uCompPad.zw);
+  float wCP = 1.0 - smoothstep(-0.2, 0.2, max(dpad.x, dpad.y));
+  BLEND(wCP, 7.0, 3.6, 0.84, vec3(0.96, 0.95, 0.93))
+  vec2 dap = max(uCompApron.xy - P, P - uCompApron.zw);
+  float wCA = 1.0 - smoothstep(-0.18, 0.18, max(dap.x, dap.y));
+  BLEND(wCA, 7.0, 3.6, 0.84, vec3(0.98, 0.96, 0.92))
+}""",
+)
+
+# Inject compound render module and hook into bO() main loop
+rep("\nvar nD = (e, t, n) => new G(e, t, n),", "\n" + crender + "\nvar nD = (e, t, n) => new G(e, t, n),")
+rep("    jb = jbUse(),\n", "    jb = jbUse(),\n    co = coUse(),\n")
+rep(
+    "      JB.events.length = 0;",
+    """      JB.events.length = 0;
+      coStep(g, v ? CT : tkA ? TK : jbA ? JB : ST.tr);
+      for (let ev of CO.events) IS.clunk(0.45);
+      CO.events.length = 0;""",
+)
+rep(
+    "        jb.update(JB, _, h.t, g, jbA));",
+    "        jb.update(JB, _, h.t, g, jbA),\n        co.update(CO, h.night, h.t, g));",
+)
+rep(
+    "        (0, Z.jsx)(`primitive`, { object: jb.root }),",
+    "        (0, Z.jsx)(`primitive`, { object: jb.root }),\n        (0, Z.jsx)(`primitive`, { object: co.root }),",
+)
+
+# ---- Authentic Turkish Village: Narrow lanes, Muddy crossings, Pınars, Architecture
+rep(
+    """      [120, -10],
+      [122, -62],
+      [118, -70],
+    ],
+  ],""",
+    """      [120, -10],
+      [122, -62],
+      [118, -70],
+    ],
+    [
+      [-53, -4],
+      [-53, 22],
+      [-27, 22],
+      [-26, 28],
+      [-10, 27],
+      [16, 28],
+      [19, 46],
+      [44, 46],
+      [52, 18],
+      [52, 4],
+    ],
+    [
+      [-26, 28],
+      [-26, 46],
+      [-45, 68],
+    ],
+    [
+      [4, 0],
+      [4, -14],
+      [11, -20],
+      [26, -21],
+      [40, -24],
+      [40, 4],
+    ],
+    [
+      [-22, -4],
+      [-22, -29],
+      [-23, -44],
+      [4, -44],
+      [14, -41],
+    ],
+  ],""",
+)
+rep(
+    "    { x: 121, z: -38, r: 2.4, depth: 0.34, mud: !0 },\n  ],",
+    """    { x: 121, z: -38, r: 2.4, depth: 0.34, mud: !0 },
+    { x: -26.5, z: 22.0, r: 2.4, depth: 0.18, mud: !0 },
+    { x: 4.0, z: 27.5, r: 2.5, depth: 0.19, mud: !0 },
+    { x: 32.0, z: 46.0, r: 2.5, depth: 0.18, mud: !0 },
+    { x: -22.0, z: -18.0, r: 2.1, depth: 0.16, mud: !0 },
+    { x: 26.0, z: -21.0, r: 2.4, depth: 0.18, mud: !0 },
+    { x: 68.0, z: 30.0, r: 3.1, depth: 0.22, mud: !0 },
+  ],""",
+)
+rep(
+    "  if ((NC(LC, e, t, $C), $C.d < 2 && $C.d > 0.45)) return iw.dirt;",
+    "  if ((NC(LC, e, t, $C), $C.d < 1.65 && $C.d > 0.35)) return iw.dirt;",
+)
+rep(
+    "float inT = 1.0 - smoothstep(1.45, 2.3, td + (tNoise(P * 0.7) - 0.5) * 0.6);\nfloat mid = 1.0 - smoothstep(0.22, 0.6, td + (tNoise(P * 1.3) - 0.5) * 0.3);",
+    "float inT = 1.0 - smoothstep(1.05, 1.72, td + (tNoise(P * 0.7) - 0.5) * 0.48);\nfloat mid = 1.0 - smoothstep(0.16, 0.45, td + (tNoise(P * 1.3) - 0.5) * 0.24);",
+)
+rep("      new q(`#8a3324`),", "      new q(`#6e4d36`),")
+rep("(0, Z.jsx)(QT, {})", "(0, Z.jsx)(vtBuildBuildings, {})")
+
+# ---- Circular Corner Minimap Enhancements (Compound, Turkish Village Pınars, Mosque Dome & Compass N)
+rep(
+    "      ((n.fillStyle = `#b8b4aa`),\n        n.fillRect(\n          i(VC.x0),\n          i(VC.z0),\n          (VC.x1 - VC.x0) * r,\n          (VC.z1 - VC.z0) * r,\n        ));",
+    """      ((n.fillStyle = `#b8b4aa`),
+        n.fillRect(
+          i(VC.x0),
+          i(VC.z0),
+          (VC.x1 - VC.x0) * r,
+          (VC.z1 - VC.z0) * r,
+        ),
+        (n.fillStyle = `#7c5644`),
+        n.fillRect(
+          i(CO_BOX.x0),
+          i(CO_BOX.z0),
+          (CO_BOX.x1 - CO_BOX.x0) * r,
+          (CO_BOX.z1 - CO_BOX.z0) * r,
+        ),
+        (n.fillStyle = `#b8b4aa`),
+        n.fillRect(
+          i(CO_PAD.x0),
+          i(CO_PAD.z0),
+          (CO_PAD.x1 - CO_PAD.x0) * r,
+          (CO_PAD.z1 - CO_PAD.z0) * r,
+        ),
+        n.fillRect(
+          i(CO_APRON.x0),
+          i(CO_APRON.z0),
+          (CO_APRON.x1 - CO_APRON.x0) * r,
+          (CO_APRON.z1 - CO_APRON.z0) * r,
+        ),
+        (n.fillStyle = `#8c5840`),
+        n.fillRect(
+          i(CO_GARAGE.x0),
+          i(CO_GARAGE.z0),
+          (CO_GARAGE.x1 - CO_GARAGE.x0) * r,
+          (CO_GARAGE.z1 - CO_GARAGE.z0) * r,
+        ),
+        (n.strokeStyle = `#3c3a37`),
+        (n.lineWidth = 2 * r),
+        n.strokeRect(
+          i(CO_BOX.x0),
+          i(CO_BOX.z0),
+          (CO_BOX.x1 - CO_BOX.x0) * r,
+          (CO_BOX.z1 - CO_BOX.z0) * r,
+        ));""",
+)
+rep(
+    "        (n.fillStyle = `#e8e2d4`),\n        n.fillRect(i(qC.x - 5), i(qC.z - 5), 10 * r, 10 * r));",
+    """        (n.fillStyle = `#e8e2d4`),
+        n.fillRect(i(qC.x - 5.5), i(qC.z - 5.5), 11 * r, 11 * r),
+        (n.fillStyle = `#6e777d`),
+        n.beginPath(),
+        n.arc(i(qC.x), i(qC.z), 4.2 * r, 0, Math.PI * 2),
+        n.fill(),
+        (n.fillStyle = `#d4a638`),
+        n.beginPath(),
+        n.arc(i(qC.x), i(qC.z), 1.5 * r, 0, Math.PI * 2),
+        n.fill(),
+        VT_PINARS.forEach((p) => {
+          n.fillStyle = `#3ea8c7`;
+          n.strokeStyle = `#163b4a`;
+          n.lineWidth = 1.2 * r;
+          n.beginPath();
+          n.arc(i(p.x), i(p.z), 3.4 * r, 0, Math.PI * 2);
+          n.fill();
+          n.stroke();
+        }));""",
+)
+# Skip minimap redraws when paused in menu, and add rotating North (N) compass indicator on circular rim
+rep(
+    "          let { imp: e } = ST,",
+    "          if (eC.getState().menu) return;\n          let { imp: e } = ST,",
+)
+rep(
+    "            l.fill(),\n            l.stroke());",
+    """            l.fill(),
+            l.stroke());
+            {
+              let nx = GD - Math.sin(r.yaw) * 78,
+                ny = GD + Math.cos(r.yaw) * 78;
+              l.save();
+              l.fillStyle = `rgba(18,22,28,0.88)`;
+              l.strokeStyle = `#e6aa2d`;
+              l.lineWidth = 1.4;
+              l.beginPath();
+              l.arc(nx, ny, 9.5, 0, Math.PI * 2);
+              l.fill();
+              l.stroke();
+              l.fillStyle = `#f7f3e8`;
+              l.font = `700 10px "Barlow Condensed", sans-serif`;
+              l.textAlign = `center`;
+              l.textBaseline = `middle`;
+              l.fillText(`N`, nx, ny + 0.5);
+              l.restore();
+            }""",
+)
+
+# ---- Turkish Village Ambient Sounds (Bird Chirps & Wind Gusts)
+rep(
+    "    brakeCooldown = 0;\n    loading = !1;",
+    "    brakeCooldown = 0;\n    ambGain = null;\n    windFilter = null;\n    windGain = null;\n    ambT = 0;\n    ambNextBird = 2.4;\n    loading = !1;",
+)
+rep(
+    "            (this.turboGain.gain.value = 0),\n            this.turbo.connect(this.turboGain),\n            this.turboGain.connect(this.sfx),\n            this.turbo.start(),",
+    """            (this.turboGain.gain.value = 0),
+            this.turbo.connect(this.turboGain),
+            this.turboGain.connect(this.sfx),
+            this.turbo.start(),
+            (this.ambGain = e.createGain()),
+            (this.ambGain.gain.value = 0.78),
+            this.ambGain.connect(this.sfx),
+            (() => {
+              let ws = e.createBufferSource();
+              ws.buffer = this.noise;
+              ws.loop = !0;
+              ws.playbackRate.value = 0.45;
+              this.windFilter = e.createBiquadFilter();
+              this.windFilter.type = `lowpass`;
+              this.windFilter.frequency.value = 320;
+              this.windFilter.Q.value = 1.4;
+              this.windGain = e.createGain();
+              this.windGain.gain.value = 0;
+              ws.connect(this.windFilter);
+              this.windFilter.connect(this.windGain);
+              this.windGain.connect(this.ambGain);
+              ws.start(0, 0.7);
+            })(),""",
+)
+rep(
+    "    level() {",
+    """    birdChirp(night) {
+      let e = this.ctx;
+      if (!e || !this.ambGain || this.muted) return;
+      let t = e.currentTime,
+        pan = e.createStereoPanner ? e.createStereoPanner() : null;
+      if (pan) {
+        pan.pan.value = (Math.random() - 0.5) * 1.4;
+        pan.connect(this.ambGain);
+      }
+      let dst = pan ?? this.ambGain;
+      if (night > 0.58) {
+        // Soft Anatolian night owl or gentle cricket chirp
+        let o = e.createOscillator(),
+          g = e.createGain();
+        o.type = `sine`;
+        o.frequency.setValueAtTime(510, t);
+        o.frequency.exponentialRampToValueAtTime(420, t + 0.38);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(0.026, t + 0.06);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.46);
+        o.connect(g);
+        g.connect(dst);
+        o.start(t);
+        o.stop(t + 0.48);
+        return;
+      }
+      if (Math.random() < 0.35) {
+        // Kumru (Turkish village turtledove) gentle 3-coo call
+        let notes = [560, 650, 520];
+        notes.forEach((f, i) => {
+          let s0 = t + i * 0.23,
+            o = e.createOscillator(),
+            g = e.createGain();
+          o.type = `sine`;
+          o.frequency.setValueAtTime(f * 0.94, s0);
+          o.frequency.exponentialRampToValueAtTime(f, s0 + 0.08);
+          o.frequency.exponentialRampToValueAtTime(f * 0.92, s0 + 0.19);
+          g.gain.setValueAtTime(0.0001, s0);
+          g.gain.linearRampToValueAtTime(0.028, s0 + 0.04);
+          g.gain.exponentialRampToValueAtTime(0.0001, s0 + 0.2);
+          o.connect(g);
+          g.connect(dst);
+          o.start(s0);
+          o.stop(s0 + 0.22);
+        });
+      } else {
+        // Morning sparrows / finches chirping
+        let count = 2 + Math.floor(Math.random() * 3),
+          base = 2400 + Math.random() * 1100;
+        for (let i = 0; i < count; i++) {
+          let s0 = t + i * (0.085 + Math.random() * 0.05),
+            dur = 0.055 + Math.random() * 0.035,
+            o = e.createOscillator(),
+            bp = e.createBiquadFilter(),
+            g = e.createGain();
+          o.type = `triangle`;
+          o.frequency.setValueAtTime(base, s0);
+          o.frequency.exponentialRampToValueAtTime(base * (1.18 + Math.random() * 0.2), s0 + dur * 0.65);
+          o.frequency.exponentialRampToValueAtTime(base * 0.95, s0 + dur);
+          bp.type = `bandpass`;
+          bp.frequency.value = 3000;
+          bp.Q.value = 1.2;
+          g.gain.setValueAtTime(0.0001, s0);
+          g.gain.linearRampToValueAtTime(0.032, s0 + 0.012);
+          g.gain.exponentialRampToValueAtTime(0.0001, s0 + dur);
+          o.connect(bp);
+          bp.connect(g);
+          g.connect(dst);
+          o.start(s0);
+          o.stop(s0 + dur + 0.01);
+        }
+      }
+    }
+    updateAmbient(dt, px, pz, night, inMenu) {
+      let e = this.ctx;
+      if (!e || e.state !== `running` || this.muted || !this.ambGain) return;
+      this.ambT += dt;
+      let t = e.currentTime;
+      this.ambGain.gain.setTargetAtTime(inMenu ? 0.2 : 0.78, t, 0.25);
+      let gust =
+        0.35 +
+        0.35 * Math.sin(this.ambT * 0.23) +
+        0.3 * Math.sin(this.ambT * 0.61 + 1.4);
+      this.windGain?.gain.setTargetAtTime(0.016 + gust * 0.044, t, 0.35);
+      this.windFilter?.frequency.setTargetAtTime(240 + gust * 360, t, 0.35);
+      if (inMenu) return;
+      this.ambNextBird -= dt;
+      if (this.ambNextBird <= 0) {
+        this.birdChirp(night);
+        this.ambNextBird = 2.2 + Math.random() * 4.0;
+      }
+    }
+    level() {""",
+)
+rep(
+    "        jb.update(JB, _, h.t, g, jbA),\n        co.update(CO, h.night, h.t, g));",
+    "        jb.update(JB, _, h.t, g, jbA),\n        co.update(CO, h.night, h.t, g),\n        IS.updateAmbient(g, C, w, h.night, _.menu));",
+)
+
+# ---- Reliable Asset Loading (retry transient proxy/network hiccups)
+rep(
+    """function AT(e) {
+  return new Promise((t, n) => {
+    let r = new Image();
+    ((r.crossOrigin = `anonymous`),
+      (r.decoding = `async`),
+      (r.onload = () => t(r)),
+      (r.onerror = () => n(Error(`image failed: ${e}`))),
+      (r.src = e));
+  });
+}""",
+    """function AT(e, nTries = 3) {
+  return new Promise((t, n) => {
+    let attempt = 0,
+      load = () => {
+        let r = new Image();
+        ((r.crossOrigin = `anonymous`),
+          (r.decoding = `async`),
+          (r.onload = () => t(r)),
+          (r.onerror = () => {
+            attempt < nTries
+              ? (attempt++, setTimeout(load, 250 * attempt))
+              : n(Error(`image failed: ${e}`));
+          }),
+          (r.src =
+            attempt > 0
+              ? `${e}${e.includes(`?`) ? `&` : `?`}r=${attempt}`
+              : e));
+      };
+    load();
+  });
+}""",
+)
+
+# ---- 60 FPS Engine & GPU Optimizations (full visual detail preserved)
+# 1. Disable mipmap regeneration on 2048x2048 live soil mask (removes driving micro-stutter)
+rep(
+    "      (Cw.minFilter = F),\n      (Cw.generateMipmaps = !0),",
+    "      (Cw.minFilter = N),\n      (Cw.generateMipmaps = !1),",
+)
+# 2. Early-Z depth ordering on terrain: draw high-res 64x64 patch BEFORE coarse/outer
+rep(
+    "  let i = new Cl({ color: 16777215, roughness: 1, metalness: 0 }),",
+    "  let i = new Cl({\n    color: 16777215,\n    roughness: 1,\n    metalness: 0,\n    ...(r === `patch`\n      ? { polygonOffset: !0, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }\n      : {}),\n  }),",
+)
+rep(
+    """      (0, Z.jsx)(`mesh`, { geometry: n, material: i, receiveShadow: !0 }),
+      (0, Z.jsx)(`mesh`, { geometry: r, material: i, receiveShadow: !0 }),
+      (0, Z.jsx)(`mesh`, {
+        geometry: a,
+        material: o,
+        receiveShadow: !0,
+        frustumCulled: !1,
+      }),""",
+    """      (0, Z.jsx)(`mesh`, {
+        geometry: a,
+        material: o,
+        receiveShadow: !0,
+        frustumCulled: !1,
+      }),
+      (0, Z.jsx)(`mesh`, { geometry: n, material: i, receiveShadow: !0 }),
+      (0, Z.jsx)(`mesh`, { geometry: r, material: i, receiveShadow: !0 }),""",
+)
+# 3. Fast PCFShadowMap ('percentage'), crisp DPR cap, no stencil buffer overhead
+rep(
+    """        (0, Z.jsx)(Ay, {
+          shadows: !0,
+          frameloop: r || (a && t) ? `never` : `always`,
+          dpr: n === `high` ? [1, 1.75] : [1, 1.25],
+          gl: { antialias: !0, powerPreference: `high-performance` },""",
+    """        (0, Z.jsx)(Ay, {
+          shadows: `percentage`,
+          frameloop: r || (a && t) ? `never` : `always`,
+          dpr: n === `high` ? [1, 1.35] : 1,
+          gl: { antialias: !0, powerPreference: `high-performance`, stencil: !1 },""",
+)
+# 4. Crisp 1536x1536 directional shadow map + skip self-shadow sampling on 25k tree leaf cards + balanced grass/wheat radius
+rep(
+    '          "shadow-mapSize": [2048, 2048],',
+    '          "shadow-mapSize": [1536, 1536],',
+)
+rep(
+    "(c.receiveShadow = l.receiveShadow = !0),",
+    "(c.receiveShadow = !0),\n            (l.receiveShadow = !1),",
+)
+rep(
+    "(n) => n.kind === t && (e || Math.hypot(n.x, n.z) < 330),",
+    "(n) => n.kind === t && Math.hypot(n.x, n.z) < (e ? 440 : 320),",
+)
+rep(
+    "(0, Z.jsx)(IE, { count: e ? 3e4 : 12e3, tile: e ? 84 : 60 }),\n          (0, Z.jsx)(LE, { spacing: e ? 0.55 : 0.8 }),",
+    "(0, Z.jsx)(IE, { count: e ? 19e3 : 9500, tile: e ? 68 : 52 }),\n          (0, Z.jsx)(LE, { spacing: e ? 0.68 : 0.9 }),",
+)
+# 5. Disable inactive vehicle spotlights/pointlights from GPU fragment light evaluation when intensity is 0
+rep(
+    """        let E = +!!n.head;
+        (u(`headlamp_lens`, `#fff3c4`, E * 3),
+          y.forEach((e) => (e.intensity = E * 60)),
+          u(`tail_lens`, `#ff2010`, n.head || n.work ? 1.6 : 0),
+          (b.intensity = (n.head ? 0.8 : 0) + c.brake * 1.2),
+          u(`brake_lens`, `#ff1a10`, c.brake > 0.1 ? 3 : 0),
+          u(`reverse_lens`, `#ffffff`, c.dir < 0 && c.running ? 2.5 : 0),
+          (S.intensity = n.work ? 45 : 0));
+        let O = n.beacon && Math.sin(r * 9) > 0 ? 1 : n.beacon ? 0.12 : 0;
+        (u(`amber_lens`, `#ffa000`, O * 4), (x.intensity = O * 6));""",
+    """        let E = +!!n.head;
+        (u(`headlamp_lens`, `#fff3c4`, E * 3),
+          y.forEach((e) => {
+            e.intensity = E * 60;
+            e.visible = E > 0;
+          }),
+          u(`tail_lens`, `#ff2010`, n.head || n.work ? 1.6 : 0),
+          (b.intensity = (n.head ? 0.8 : 0) + c.brake * 1.2),
+          (b.visible = b.intensity > 0.01),
+          u(`brake_lens`, `#ff1a10`, c.brake > 0.1 ? 3 : 0),
+          u(`reverse_lens`, `#ffffff`, c.dir < 0 && c.running ? 2.5 : 0),
+          (S.intensity = n.work ? 45 : 0),
+          (S.visible = !!n.work));
+        let O = n.beacon && Math.sin(r * 9) > 0 ? 1 : n.beacon ? 0.12 : 0;
+        (u(`amber_lens`, `#ffa000`, O * 4), (x.intensity = O * 6), (x.visible = O > 0.01));""",
+)
+rep(
+    "((M.lens.emissiveIntensity = lit ? 3 : 0), (spot.intensity = lit ? 60 : 0));",
+    "((M.lens.emissiveIntensity = lit ? 3 : 0), (spot.intensity = lit ? 60 : 0), (spot.visible = !!lit));",
+)
+# 6. Pre-allocate scratch vectors & colors in bO() to avoid per-frame GC stalls
+rep(
+    "  yO = new Ln();\nfunction bO()",
+    "  yO = new Ln(),\n  coNightCol = new q(`#0b1220`),\n  coSunDir = new G(),\n  coMoonDir = new G(-0.4, 0.8, 0.3).normalize();\nfunction bO()",
+)
+rep(
+    """      let A = wC(0.62, -0.12, k),
+        j = new G(
+          Math.cos(A) * 0.82,
+          Math.sin(A),
+          Math.cos(A) * -0.57,
+        ).normalize(),""",
+    """      let A = wC(0.62, -0.12, k),
+        j = coSunDir.set(
+          Math.cos(A) * 0.82,
+          Math.sin(A),
+          Math.cos(A) * -0.57,
+        ).normalize(),""",
+)
+rep(
+    """        let e = s.current,
+          t = new G(-0.4, 0.8, 0.3).normalize(),
+          n = k > 0.5 ? t : j;""",
+    """        let e = s.current,
+          n = k > 0.5 ? coMoonDir : j;""",
+)
+rep(
+    "        f.color.set(`#c4d4e0`).lerp(new q(`#0b1220`), k),",
+    "        f.color.set(`#c4d4e0`).lerp(coNightCol, k),",
+)
+
+# =====================================================================
+# ---- Motor Grader (Greyder) add-on (grader-*.js) & Roadwork Surface Layers
+grcore = open(os.path.join(SRC, "grader-core.js")).read()
+grrender = open(os.path.join(SRC, "grader-render.js")).read()
+grui = open(os.path.join(SRC, "grader-ui.js")).read()
+
+rep("({ kepce: `excavator`, kamyon: `truck`, jcb: `jcb`, beko: `jcb` })", "({ kepce: `excavator`, kamyon: `truck`, jcb: `jcb`, beko: `jcb`, greyder: `grader`, grader: `grader` })")
+rep("    jcbEngine: !0,\n", "    jcbEngine: !0,\n    graderEngine: !0,\n")
+rep(
+    "    jDump: !1,\n  })),\n  nC =",
+    "    jDump: !1,\n    grBlade: 0.24,\n    grAngle: -0.26,\n    grRip: 0,\n    grRipCmd: 0,\n    grWork: !1,\n    grArea: 0,\n    grRev: !1,\n  })),\n  nC =",
+)
+rep("    autoPressed: !1,\n  },", "    autoPressed: !1,\n    grAngL: !1,\n    grAngR: !1,\n  },")
+rep("t === `jcb` ? 0.1 : 0", "t === `jcb` ? 0.1 : t === `grader` ? 0.08 : 0")
+rep("t === `jcb` ? 12.5 : 11", "t === `jcb` ? 12.5 : t === `grader` ? 14.5 : 11")
+rep(": t === `jcb` ? { jcbEngine: !0 } : {})", ": t === `jcb` ? { jcbEngine: !0 } : t === `grader` ? { graderEngine: !0 } : {})")
+rep(": e === `jcb` ? { jcbEngine: !0 } : {}),", ": e === `jcb` ? { jcbEngine: !0 } : e === `grader` ? { graderEngine: !0 } : {}),")
+rep(
+    ": e.vehicle === `jcb`\n          ? `jcbEngine`\n          : `engine`,",
+    ": e.vehicle === `jcb`\n          ? `jcbEngine`\n          : e.vehicle === `grader`\n            ? `graderEngine`\n            : `engine`,",
+)
+rep(
+    "        case `KeyG`:\n          n && t.flip(`bladeDown`);",
+    "        case `KeyG`:\n          t.vehicle === `grader` ? grRipperToggle() : n && t.flip(`bladeDown`);",
+)
+
+# Collisions
+rep(
+    "JBC = [0, 1, 2].map(() => ({ k: `c`, x: 1e9, z: 1e9, r: 1.2 })),\n  Qw = [dw, uw, TKC, JBC, COC];",
+    "JBC = [0, 1, 2].map(() => ({ k: `c`, x: 1e9, z: 1e9, r: 1.2 })),\n  GRC = [0, 1, 2, 3].map(() => ({ k: `c`, x: 1e9, z: 1e9, r: 1.2 })),\n  Qw = [dw, uw, TKC, JBC, COC, GRC];",
+)
+rep(
+    "Q.BODY_R, JBC) ||\n        c));",
+    "Q.BODY_R, JBC) ||\n        c),\n      (c =\n        hT(e, e.x + Math.sin(e.yaw) * t, e.z + Math.cos(e.yaw) * t, Q.BODY_R, GRC) ||\n        c));",
+)
+
+# Live surface mask B-channel (scarified asphalt/soil & compacted leveled roadbed)
+rep(
+    "    tilledCells = 0;\n",
+    "    tilledCells = 0;\n    scrapedCells = 0;\n",
+)
+rep(
+    "      return ((this.tilledCells += h), h * this.cellArea);\n    }\n    stampTrack(",
+    """      return ((this.tilledCells += h), h * this.cellArea);
+    }
+    paintScrape(e, t, n, r, i, val, canFn) {
+      let o = this.n,
+        s = Math.max(0, this.toCell(Math.min(e, n) - i)),
+        c = Math.min(o - 1, this.toCell(Math.max(e, n) + i)),
+        l = Math.max(0, this.toCell(Math.min(t, r) - i)),
+        u = Math.min(o - 1, this.toCell(Math.max(t, r) + i)),
+        d = n - e,
+        f = r - t,
+        p = d * d + f * f || 1e-6,
+        m = i * i;
+      for (let yy = l; yy <= u; yy++) {
+        let wz = (yy + 0.5) * this.cell - 300;
+        for (let xx = s; xx <= c; xx++) {
+          let idx = (yy * o + xx) * 4;
+          if (this.data[idx + 2] >= val) continue;
+          let wx = (xx + 0.5) * this.cell - 300,
+            t0 = ((wx - e) * d + (wz - t) * f) / p;
+          t0 = t0 < 0 ? 0 : t0 > 1 ? 1 : t0;
+          let dx = wx - e - d * t0,
+            dz = wz - t - f * t0;
+          if (dx * dx + dz * dz <= m && (!canFn || canFn(wx, wz))) {
+            this.data[idx + 2] = val;
+            this.data[idx] = Math.max(0, this.data[idx] - 180);
+            this.mark(yy, xx);
+            this.scrapedCells++;
+          }
+        }
+      }
+    }
+    stampTrack(""",
+)
+rep(
+    "((this.data[e] = 0), (this.data[e + 1] = 0));\n      this.tilledCells = 0;",
+    "((this.data[e] = 0), (this.data[e + 1] = 0), (this.data[e + 2] = 0));\n      this.tilledCells = 0;\n      this.scrapedCells = 0;",
+)
+
+# Clear meadow grass blades wherever the grader scrapes/levels ground
+rep(
+    "(1.0 - smoothstep(0.25, 0.45, mk.r)) * (1.0 - smoothstep(0.72, 1.0, dc))",
+    "(1.0 - smoothstep(0.25, 0.45, mk.r)) * (1.0 - smoothstep(0.22, 0.52, mk.b)) * (1.0 - smoothstep(0.72, 1.0, dc))",
+)
+
+# Terrain shader: render torn asphalt/mud patches & freshly leveled aggregate sub-base via m.b
+rep(
+    "// excavated holes and dumped soil piles from the live dig field",
+    """// grader scarified asphalt/dirt and leveled crushed-stone roadbed (m.b)
+if (m.b > 0.01) {
+  float wScar = smoothstep(0.04, 0.28, m.b) * (1.0 - smoothstep(0.55, 0.72, m.b));
+  float wFlat = smoothstep(0.62, 0.88, m.b);
+  float gGrn = 0.88 + 0.24 * tNoise(P * 2.4);
+  if (wScar > 0.003) {
+    vec2 uvs = P / 2.6;
+    vec3 cScar = mix(sD(4.0, uvs, kAT) * vec3(0.5, 0.46, 0.42), sD(5.0, uvs, kAT) * vec3(0.78, 0.68, 0.58), 0.48) * gGrn;
+    tC = mix(tC, cScar, wScar);
+    tN = mix(tN, sN(5.0, uvs), wScar * 0.7);
+    tR = mix(tR, 0.96, wScar);
+  }
+  if (wFlat > 0.003) {
+    vec2 uvf = P / 2.2;
+    vec3 cFlat = sD(7.0, uvf, kAT) * vec3(0.66, 0.65, 0.61) * (0.94 + 0.12 * tNoise(P * 3.1));
+    tC = mix(tC, cFlat, wFlat);
+    tN = mix(tN, sN(5.0, uvf) * 0.42, wFlat * 0.42);
+    tR = mix(tR, 0.88, wFlat);
+  }
+}
+// excavated holes and dumped soil piles from the live dig field""",
+)
+
+# Inject grader modules
+rep("\nvar ST = Gw(Sw),", "\n" + grcore + "\nvar ST = Gw(Sw),")
+rep("\nvar nD = (e, t, n) => new G(e, t, n),", "\n" + grrender + "\nvar nD = (e, t, n) => new G(e, t, n),")
+rep("\nfunction qD() {", "\n" + grui + "\nfunction qD() {")
+
+# Audio bank for Motor Grader
+rep(
+    """    jcb: {
+      idle: `engine_idle.wav`,
+      load: `engine_load.wav`,
+      crank: null,
+      baseRpm: 850,
+      trim: 0.92,
+      crankGain: 0.85,
+      filterBase: 880,
+      filterRpm: 1.35,
+      filterLoad: 1600,
+      subMul: 0.26,
+    },""",
+    """    jcb: {
+      idle: `engine_idle.wav`,
+      load: `engine_load.wav`,
+      crank: null,
+      baseRpm: 850,
+      trim: 0.92,
+      crankGain: 0.85,
+      filterBase: 880,
+      filterRpm: 1.35,
+      filterLoad: 1600,
+      subMul: 0.26,
+    },
+    grader: {
+      idle: `truck_idle.wav`,
+      load: `truck_load.wav`,
+      crank: `truck_crank.wav`,
+      baseRpm: 720,
+      trim: 0.82,
+      crankGain: 0.95,
+      filterBase: 760,
+      filterRpm: 1.28,
+      filterLoad: 1550,
+      subMul: 0.32,
+    },""",
+)
+rep(
+    "veh === `jcb`\n                ? 0.065",
+    "veh === `jcb` || veh === `grader`\n                ? 0.065",
+)
+rep(
+    "(veh === `truck` || veh === `jcb`) &&",
+    "(veh === `truck` || veh === `jcb` || veh === `grader`) &&",
+)
+rep(
+    "? !v && !tkA && !jbA && IS.crank(`tractor`)",
+    "? !v && !tkA && !jbA && !grA && IS.crank(`tractor`)",
+)
+
+# HUD bar, prompts, help, layout, menu
+rep(
+    "    jb = e.vehicle === `jcb`,\n    n = t || jb\n      ? [`Chase`, `Cab`, `Side`]",
+    "    jb = e.vehicle === `jcb`,\n    gr = e.vehicle === `grader`,\n    n = t || jb || gr\n      ? [`Chase`, `Cab`, `Side`]",
+)
+rep(
+    "on: t ? e.excEngine : k ? e.truckEngine : jb ? e.jcbEngine : e.engine,",
+    "on: t ? e.excEngine : k ? e.truckEngine : jb ? e.jcbEngine : gr ? e.graderEngine : e.engine,",
+)
+rep(
+    "      !t &&\n        !k &&\n        !jb &&\n        (0, Z.jsx)(XD, {",
+    "      !t &&\n        !k &&\n        !jb &&\n        !gr &&\n        (0, Z.jsx)(XD, {",
+)
+rep(
+    "    jb = eC((e) => e.vehicle === `jcb`),\n    [n, r] = (0, y.useState)(Date.now());",
+    "    jb = eC((e) => e.vehicle === `jcb`),\n    gr = eC((e) => e.vehicle === `grader`),\n    [n, r] = (0, y.useState)(Date.now());",
+)
+rep(
+    "      : jb\n        ? (i = jbPrompt(e))",
+    "      : gr\n        ? (i = grPrompt(e))\n        : jb\n        ? (i = jbPrompt(e))",
+)
+rep(
+    "    jb = eC.getState().vehicle === `jcb`;\n  return (0, Z.jsxs)(`div`, {\n    className: `hud-panel hud-help`,",
+    "    jb = eC.getState().vehicle === `jcb`,\n    gr = eC.getState().vehicle === `grader`;\n  return (0, Z.jsxs)(`div`, {\n    className: `hud-panel hud-help`,",
+)
+rep(
+    "        children: jb\n          ? `JCB backhoe loader controls`",
+    "        children: gr\n          ? `Motor grader controls`\n          : jb\n          ? `JCB backhoe loader controls`",
+)
+rep(
+    "      (jb\n        ? JBhelp",
+    "      (gr\n        ? GRhelp\n        : jb\n        ? JBhelp",
+)
+rep(
+    "    jb = tkVeh === `jcb`;\n",
+    "    jb = tkVeh === `jcb`,\n    gr = tkVeh === `grader`;\n",
+)
+rep(
+    "        children: jb\n          ? (0, Z.jsx)(jbGauges, {})",
+    "        children: gr\n          ? (0, Z.jsx)(grGauges, {})\n          : jb\n          ? (0, Z.jsx)(jbGauges, {})",
+)
+rep(
+    "        children: jb\n          ? (0, Z.jsx)(jbControls, {})",
+    "        children: gr\n          ? (0, Z.jsx)(grControls, {})\n          : jb\n          ? (0, Z.jsx)(jbControls, {})",
+)
+rep(
+    "                  ` Play JCB Backhoe`,\n                ],\n              }),\n",
+    "                  ` Play JCB Backhoe`,\n                ],\n              }),\n"
+    "              (0, Z.jsxs)(`button`, {\n                type: `button`,\n                className: `menu-btn`,\n                onClick: () => lO(`grader`),\n                children: [\n                  (0, Z.jsx)(GRD, { size: 20, \"aria-hidden\": !0 }),\n                  ` Play Grader`,\n                ],\n              }),\n",
+)
+rep("tractor, excavator, dump truck and JCB…", "tractor, excavator, dump truck, JCB and grader…")
+
+# Minimap: roadwork zones + live graded roadbed + Grader icon
+rep(
+    "        n.stroke(),\n        (n.fillStyle = `#b5462e`));",
+    """        n.stroke(),
+        n.save(),
+        (n.strokeStyle = `#f09a1a`),
+        (n.lineWidth = 5 * r),
+        n.setLineDash([4 * r, 3 * r]),
+        GR_ZONES.forEach((zn) => {
+          n.beginPath();
+          n.moveTo(i(zn.x0), i(grZoneZ(zn, zn.x0)));
+          n.lineTo(i(zn.x1), i(grZoneZ(zn, zn.x1)));
+          n.stroke();
+        }),
+        n.restore(),
+        (n.fillStyle = `#b5462e`));""",
+)
+rep(
+    "        u = -1,\n        d = -1,",
+    "        u = -1,\n        gs = -1,\n        d = -1,",
+)
+rep(
+    "          if ((f++, (Sw.tilledCells !== u || SC.version !== d) && f % 4 == 0)) {\n            ((u = Sw.tilledCells), (d = SC.version));",
+    "          if ((f++, (Sw.tilledCells !== u || Sw.scrapedCells !== gs || SC.version !== d) && f % 4 == 0)) {\n            ((u = Sw.tilledCells), (gs = Sw.scrapedCells), (d = SC.version));",
+)
+rep(
+    """                let n =
+                    Sw.data[(Math.floor(e * c) * Sw.n + Math.floor(t * c)) * 4],
+                  r =
+                    SC.data[
+                      Math.floor((e + 0.5) * p) * SC.n +
+                        Math.floor((t + 0.5) * p)
+                    ],
+                  i = (e * 256 + t) * 4,
+                  a = r < -0.12,
+                  o = r > 0.12;
+                ((s.data[i] = a ? 38 : o ? 150 : 70),
+                  (s.data[i + 1] = a ? 24 : o ? 112 : 44),
+                  (s.data[i + 2] = a ? 14 : o ? 72 : 26),
+                  (s.data[i + 3] = n > 100 || a || o ? 255 : 0));""",
+    """                let mOff = (Math.floor(e * c) * Sw.n + Math.floor(t * c)) * 4,
+                  n = Sw.data[mOff],
+                  nb = Sw.data[mOff + 2],
+                  r =
+                    SC.data[
+                      Math.floor((e + 0.5) * p) * SC.n +
+                        Math.floor((t + 0.5) * p)
+                    ],
+                  i = (e * 256 + t) * 4,
+                  a = r < -0.12,
+                  o = r > 0.12,
+                  gf = nb > 180;
+                ((s.data[i] = gf ? 154 : a ? 38 : o ? 150 : 70),
+                  (s.data[i + 1] = gf ? 152 : a ? 24 : o ? 112 : 44),
+                  (s.data[i + 2] = gf ? 144 : a ? 14 : o ? 72 : 26),
+                  (s.data[i + 3] = gf || n > 100 || a || o ? 255 : 0));""",
+)
+rep(
+    "            jj = tkVeh === `jcb`,\n            r = jj ? JB : kk ? TK :",
+    "            jj = tkVeh === `jcb`,\n            gg = tkVeh === `grader`,\n            r = gg ? GR : jj ? JB : kk ? TK :",
+)
+rep(
+    "            jj ||\n              (l.save(),",
+    "            gg ||\n              (l.save(),\n              l.translate(GR.x, GR.z),\n              l.rotate(-GR.yaw),\n              (l.fillStyle = `#f0ad18`),\n              l.fillRect(-3.2, -3, 6.4, 13),\n              l.strokeRect(-3.2, -3, 6.4, 13),\n              l.restore()),\n            jj ||\n              (l.save(),",
+)
+
+# Main loop bO(): update, exhaust smoke, scraping dust, cameras, HUD sync, IS.update, render primitives
+rep("    jb = jbUse(),\n    co = coUse(),", "    jb = jbUse(),\n    gr = grUse(),\n    co = coUse(),")
+rep(
+    "        jbA = _.vehicle === `jcb`,\n        y = v || tkA || jbA || _.menu ? vO : mC();",
+    "        jbA = _.vehicle === `jcb`,\n        grA = _.vehicle === `grader`,\n        y = v || tkA || jbA || grA || _.menu ? vO : mC();",
+)
+rep("jbA ? jbReset(JB) : Kw(ST)", "jbA ? jbReset(JB) : grA ? grReset(GR) : Kw(ST)")
+rep("attachPressed: !v && !tkA && !jbA && rC.attachPressed,", "attachPressed: !v && !tkA && !jbA && !grA && rC.attachPressed,")
+rep(
+    "      coStep(g, v ? CT : tkA ? TK : jbA ? JB : ST.tr);",
+    """      grStep(GR, grA && !_.menu ? grInput() : null, g, _.graderEngine);
+      for (let ev of GR.events)
+        ev.type === `crank`
+          ? grA && IS.crank(`grader`)
+          : ev.type === `bump`
+            ? IS.thud(ev.strength / 3)
+            : !grA
+              ? 0
+              : ev.type === `ripDown`
+                ? (IS.clunk(0.5), nC(`Rear 5-shank ripper lowered`))
+                : ev.type === `ripUp`
+                  ? (IS.clunk(0.45), nC(`Rear ripper raised`))
+                  : ev.type === `noHydraulics` &&
+                    nC(`Start the grader engine first to move the blade (K)`);
+      GR.events.length = 0;
+      coStep(g, v ? CT : tkA ? TK : jbA ? JB : grA ? GR : ST.tr);""",
+)
+rep(
+    "        C = v ? CT.x : tkA ? TK.x : jbA ? JB.x : x.x,\n        w = v ? CT.z : tkA ? TK.z : jbA ? JB.z : x.z;",
+    "        C = v ? CT.x : tkA ? TK.x : jbA ? JB.x : grA ? GR.x : x.x,\n        w = v ? CT.z : tkA ? TK.z : jbA ? JB.z : grA ? GR.z : x.z;",
+)
+rep("v || tkA || jbA ? { ..._, head: !1, work: !1, beacon: !1, hood: !1 } : _,", "v || tkA || jbA || grA ? { ..._, head: !1, work: !1, beacon: !1, hood: !1 } : _,")
+rep(
+    "        jb.update(JB, _, h.t, g, jbA),\n        co.update(CO, h.night, h.t, g),",
+    "        jb.update(JB, _, h.t, g, jbA),\n        gr.update(GR, _, h.t, g, grA),\n        co.update(CO, h.night, h.t, g),",
+)
+rep(
+    "      if (CT.digging > 0.05 || CT.bladeWork > 0.05)",
+    """      if (GR.running)
+        for (
+          h.grSmoke = (h.grSmoke || 0) + g * (3 + GR.eload * 20),
+            gr.root.localToWorld(hO.copy(gr.exhaust));
+          h.grSmoke > 1;
+        ) {
+          h.grSmoke--;
+          let dk = GR.eload > 0.58;
+          r.emit(hO.x, hO.y, hO.z, (Math.random() - 0.5) * 0.3, 1.45 + Math.random() * 0.5, (Math.random() - 0.5) * 0.3, 1.8, 0.45, dk ? mO : pO, dk ? 0.48 : 0.22);
+        }
+      if (GR.bladeWork > 0.06)
+        for (h.grDust = (h.grDust || 0) + g * 28 * GR.bladeWork; h.grDust > 1; ) {
+          h.grDust--;
+          r.emit(
+            GR.castTip.x + (Math.random() - 0.5) * 0.7,
+            GR.castTip.y + 0.16,
+            GR.castTip.z + (Math.random() - 0.5) * 0.7,
+            (Math.random() - 0.5) * 0.7,
+            0.4 + Math.random() * 0.5,
+            (Math.random() - 0.5) * 0.7,
+            2.1,
+            1.15,
+            fO,
+            0.32,
+          );
+        }
+      if (GR.ripping > 0.12)
+        for (h.grRipDust = (h.grRipDust || 0) + g * 18 * GR.ripping; h.grRipDust > 1; ) {
+          h.grRipDust--;
+          let rx = GR.x + Math.sin(GR.yaw) * GRS.RIPPER_Z,
+            rz = GR.z + Math.cos(GR.yaw) * GRS.RIPPER_Z;
+          r.emit(rx + (Math.random() - 0.5) * 1.4, nw(rx, rz) + 0.15, rz + (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.5, 0.35 + Math.random() * 0.4, (Math.random() - 0.5) * 0.5, 1.8, 1.0, fO, 0.28);
+        }
+      if (CT.digging > 0.05 || CT.bladeWork > 0.05)""",
+)
+rep(
+    "            : jbA\n            ? hO.set(JB.x + Math.sin(JB.yaw) * 0.6, JB.y + 1.9, JB.z + Math.cos(JB.yaw) * 0.6)",
+    "            : jbA\n            ? hO.set(JB.x + Math.sin(JB.yaw) * 0.6, JB.y + 1.9, JB.z + Math.cos(JB.yaw) * 0.6)\n            : grA\n            ? hO.set(GR.x + Math.sin(GR.yaw) * 1.5, GR.y + 2.05, GR.z + Math.cos(GR.yaw) * 1.5)",
+)
+rep(
+    "      } else if (jbA && _.cam === 1) {",
+    """      } else if (grA && _.cam === 1) {
+        let gE = gr.root.localToWorld(gr.eye.clone());
+        E.position.copy(gE);
+        let gP0 = iC.pitch - 0.22,
+          gDir = new G(
+            Math.sin(iC.yaw) * Math.cos(gP0),
+            Math.sin(gP0),
+            Math.cos(iC.yaw) * Math.cos(gP0),
+          ).applyQuaternion(gr.root.quaternion);
+        (E.up.set(0, 1, 0), E.lookAt(gE.add(gDir)), (E.fov = iC.fov), (h.camInit = !1));
+      } else if (grA && _.cam === 2) {
+        let gP = gr.root.localToWorld(new G(5.4, 2.5, 1.1)),
+          gL = gr.root.localToWorld(new G(0, 0.5, GRS.BLADE_Z));
+        ((gP.y = Math.max(gP.y, nw(gP.x, gP.z) + 0.9)),
+          E.position.lerp(gP, h.camInit ? EC(6, g) : 1),
+          E.up.set(0, 1, 0),
+          E.lookAt(gL),
+          (E.fov = 58),
+          (h.camInit = !0));
+      } else if (grA) {
+        let ga = GR.yaw + Math.PI + iC.yaw,
+          gp = CC(0.28 + iC.pitch, -0.1, 1.3),
+          gn = iC.dist,
+          gC2 = new G(
+            D.x + Math.sin(ga) * Math.cos(gp) * gn,
+            D.y + Math.sin(gp) * gn,
+            D.z + Math.cos(ga) * Math.cos(gp) * gn,
+          );
+        ((gC2.y = Math.max(gC2.y, nw(gC2.x, gC2.z) + 0.9)),
+          h.camInit ? E.position.lerp(gC2, EC(5, g)) : E.position.copy(gC2),
+          (h.camInit = !0),
+          E.up.set(0, 1, 0),
+          E.lookAt(D),
+          (E.fov = 62));
+      } else if (jbA && _.cam === 1) {""",
+)
+rep(
+    "            speed: Math.abs(v ? CT.v : tkA ? TK.v : jbA ? JB.v : x.v) * 3.6,\n            rpm: v ? CT.rpm : tkA ? TK.rpm : jbA ? JB.rpm : x.rpm,",
+    "            speed: Math.abs(v ? CT.v : tkA ? TK.v : jbA ? JB.v : grA ? GR.v : x.v) * 3.6,\n            rpm: v ? CT.rpm : tkA ? TK.rpm : jbA ? JB.rpm : grA ? GR.rpm : x.rpm,",
+)
+rep(
+    "            running: v ? CT.running : tkA ? TK.running : jbA ? JB.running : x.running,",
+    "            running: v ? CT.running : tkA ? TK.running : jbA ? JB.running : grA ? GR.running : x.running,",
+)
+rep(
+    "            jDump: JB.lDump > 0.05 || JB.bDump > 0.1,\n          })),",
+    "            jDump: JB.lDump > 0.05 || JB.bDump > 0.1,\n            grBlade: GR.bladeH,\n            grAngle: GR.bladeAng,\n            grRip: GR.ripper,\n            grRipCmd: GR.ripperCmd,\n            grWork: GR.bladeWork > 0.06,\n            grArea: GR.gradedM2,\n            grRev: GR.v < -0.3,\n          })),",
+)
+rep(
+    "        jbA\n          ? IS.update({",
+    """        grA
+          ? IS.update({
+              rpm: GR.rpm,
+              load: GR.eload,
+              running: GR.running,
+              working: Math.min(1, Math.max(GR.bladeWork, GR.ripping * 0.8)),
+              speed: Math.abs(GR.v),
+              rough: 0.55,
+              hydraulic: GR.hyd > 0.08 ? (GR.hydCmd >= 0 ? 1 : -1) : 0,
+              vehicle: `grader`,
+              cranking: GR.engine && !GR.running,
+              reverse: GR.v < -0.3,
+            })
+          : jbA
+          ? IS.update({""",
+)
+rep(
+    "        (0, Z.jsx)(`primitive`, { object: co.root }),",
+    "        (0, Z.jsx)(`primitive`, { object: gr.root }),\n        (0, Z.jsx)(`primitive`, { object: gr.zonesRoot }),\n        (0, Z.jsx)(`primitive`, { object: co.root }),",
+)
+
+# =====================================================================
+# ---- Paving Silos + Vibratory Road Roller (Silindir) + Asphalt Paver (Finiser)
+pvcore = open(os.path.join(SRC, "paving-core.js")).read()
+pvrender = open(os.path.join(SRC, "paving-render.js")).read()
+rlcore = open(os.path.join(SRC, "roller-core.js")).read()
+rlrender = open(os.path.join(SRC, "roller-render.js")).read()
+rlui = open(os.path.join(SRC, "roller-ui.js")).read()
+pvcarcore = open(os.path.join(SRC, "paver-core.js")).read()
+pvcarrender = open(os.path.join(SRC, "paver-render.js")).read()
+pvcarui = open(os.path.join(SRC, "paver-ui.js")).read()
+
+pvprog_ui = """
+function PVProgress() {
+  let zones = tC((e) => e.pvZones) || [],
+    [open, setOpen] = (0, y.useState)(!1),
+    [sel, setSel] = (0, y.useState)(0);
+  if (!zones.length) return null;
+  let z = zones[sel] ?? zones[0],
+    pct = Math.round((z.scrape + z.gravel + z.gComp + z.asphalt + z.aComp) / 5),
+    steps = [
+      [`1. Zemin Kazıma (Greyder)`, z.scrape],
+      [`2. Çakıl Serimi (Kamyon/Greyder)`, z.gravel],
+      [`3. Çakıl Sıkıştırma (Silindir)`, z.gComp],
+      [`4. Asfalt Serimi (Finişer)`, z.asphalt],
+      [`5. Asfalt Sıkıştırma (Silindir)`, z.aComp],
+    ];
+  return (0, Z.jsxs)(`div`, {
+    className: `hud-panel`,
+    style: { marginTop: 8, width: 210, padding: `8px 10px`, fontSize: 12 },
+    children: [
+      (0, Z.jsxs)(`button`, {
+        type: `button`,
+        onClick: () => setOpen((o) => !o),
+        style: {
+          width: `100%`,
+          display: `flex`,
+          justifyContent: `space-between`,
+          alignItems: `center`,
+          fontWeight: 700,
+          color: `var(--harvest)`,
+          cursor: `pointer`,
+        },
+        children: [
+          (0, Z.jsx)(`span`, { children: `Yol Asfaltlama (${pct}%)` }),
+          (0, Z.jsx)(`span`, { children: open ? `▾` : `▸` }),
+        ],
+      }),
+      open &&
+        (0, Z.jsxs)(`div`, {
+          style: { marginTop: 6, display: `flex`, flexDirection: `column`, gap: 5 },
+          children: [
+            (0, Z.jsx)(`div`, {
+              style: { display: `flex`, gap: 4 },
+              children: zones.map((zn, idx) =>
+                (0, Z.jsx)(
+                  `button`,
+                  {
+                    type: `button`,
+                    onClick: () => setSel(idx),
+                    style: {
+                      flex: 1,
+                      padding: `2px 4px`,
+                      borderRadius: 5,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      cursor: `pointer`,
+                      background: idx === sel ? `var(--harvest)` : `rgba(255,255,255,0.08)`,
+                      color: idx === sel ? `var(--harvest-foreground)` : `var(--hud-muted)`,
+                    },
+                    children: idx === 0 ? `Ana Yol` : idx === 1 ? `Doğu` : `Geçiş`,
+                  },
+                  zn.id,
+                ),
+              ),
+            }),
+            steps.map(([label, val]) =>
+              (0, Z.jsxs)(
+                `div`,
+                {
+                  style: { display: `flex`, flexDirection: `column`, gap: 2 },
+                  children: [
+                    (0, Z.jsxs)(`div`, {
+                      style: { display: `flex`, justifyContent: `space-between`, fontSize: 11 },
+                      children: [
+                        (0, Z.jsx)(`span`, { style: { color: val >= 75 ? `#4ade80` : `var(--hud-foreground)` }, children: label }),
+                        (0, Z.jsx)(`b`, { children: `${val}%` }),
+                      ],
+                    }),
+                    (0, Z.jsx)(`div`, {
+                      className: `hud-meter`,
+                      style: { height: 4 },
+                      children: (0, Z.jsx)(`div`, { style: { width: `${val}%` } }),
+                    }),
+                  ],
+                },
+                label,
+              ),
+            ),
+          ],
+        }),
+    ],
+  });
+}
+"""
+
+# URL params, store defaults, cameras, ignition & keys
+rep(
+    "({ kepce: `excavator`, kamyon: `truck`, jcb: `jcb`, beko: `jcb`, greyder: `grader`, grader: `grader` })",
+    "({ kepce: `excavator`, kamyon: `truck`, jcb: `jcb`, beko: `jcb`, greyder: `grader`, grader: `grader`, silindir: `roller`, roller: `roller`, finiser: `paver`, paver: `paver` })",
+)
+rep(
+    "    graderEngine: !0,\n",
+    "    graderEngine: !0,\n    rollerEngine: !0,\n    paverEngine: !0,\n",
+)
+rep(
+    "    grRev: !1,\n  })),\n  nC =",
+    "    grRev: !1,\n    rlVibe: !0,\n    rlWater: !0,\n    rlWork: !1,\n    rlSteam: !1,\n    rlArea: 0,\n    rlRev: !1,\n    pvLoad: 0,\n    pvScreed: 1,\n    pvScreedDown: !0,\n    pvWork: !1,\n    pvArea: 0,\n    pvRev: !1,\n    tMat: `soil`,\n    pvNearSilo: null,\n    pvFilling: null,\n    pvFillAuto: !0,\n    pvZones: [],\n  })),\n  nC =",
+)
+rep("t === `jcb` ? 0.1 : t === `grader` ? 0.08 : 0", "t === `jcb` ? 0.1 : t === `grader` ? 0.08 : t === `roller` ? 0.1 : t === `paver` ? 0.12 : 0")
+rep("t === `jcb` ? 12.5 : t === `grader` ? 14.5 : 11", "t === `jcb` ? 12.5 : t === `grader` ? 14.5 : t === `roller` ? 11.5 : t === `paver` ? 12.0 : 11")
+rep(
+    ": t === `grader` ? { graderEngine: !0 } : {})",
+    ": t === `grader` ? { graderEngine: !0 } : t === `roller` ? { rollerEngine: !0 } : t === `paver` ? { paverEngine: !0 } : {})",
+)
+rep(
+    ": e === `grader` ? { graderEngine: !0 } : {}),",
+    ": e === `grader` ? { graderEngine: !0 } : e === `roller` ? { rollerEngine: !0 } : e === `paver` ? { paverEngine: !0 } : {}),",
+)
+rep(
+    "          : e.vehicle === `grader`\n            ? `graderEngine`\n            : `engine`,",
+    "          : e.vehicle === `grader`\n            ? `graderEngine`\n            : e.vehicle === `roller`\n              ? `rollerEngine`\n              : e.vehicle === `paver`\n                ? `paverEngine`\n                : `engine`,",
+)
+rep(
+    "        case `KeyG`:\n          t.vehicle === `grader` ? grRipperToggle() : n && t.flip(`bladeDown`);\n          break;",
+    """        case `KeyG`:
+          t.vehicle === `grader`
+            ? grRipperToggle()
+            : t.vehicle === `roller`
+              ? rlVibeToggle()
+              : t.vehicle === `paver`
+                ? pvScreedToggle()
+                : t.vehicle === `truck`
+                  ? pvToggleFill()
+                  : n && t.flip(`bladeDown`);
+          break;
+        case `KeyU`:
+          t.vehicle === `roller` && rlWaterToggle();
+          break;""",
+)
+
+# Collisions, trees, silo pads, clod colors, direct paver hopper catch & surface deposit
+rep(
+    "  GRC = [0, 1, 2, 3].map(() => ({ k: `c`, x: 1e9, z: 1e9, r: 1.2 })),\n  Qw = [dw, uw, TKC, JBC, COC, GRC];",
+    "  GRC = [0, 1, 2, 3].map(() => ({ k: `c`, x: 1e9, z: 1e9, r: 1.2 })),\n  RLC = [0, 1, 2].map(() => ({ k: `c`, x: 1e9, z: 1e9, r: 1.18 })),\n  PVC = [0, 1, 2].map(() => ({ k: `c`, x: 1e9, z: 1e9, r: 1.22 })),\n  Qw = [dw, uw, TKC, JBC, COC, GRC, RLC, PVC];",
+)
+rep(
+    "Q.BODY_R, GRC) ||\n        c));",
+    "Q.BODY_R, GRC) ||\n        c),\n      (c =\n        hT(e, e.x + Math.sin(e.yaw) * t, e.z + Math.cos(e.yaw) * t, Q.BODY_R, RLC) ||\n        c),\n      (c =\n        hT(e, e.x + Math.sin(e.yaw) * t, e.z + Math.cos(e.yaw) * t, Q.BODY_R, PVC) ||\n        c));",
+)
+rep("coNoTree(e, t))", "coNoTree(e, t) ||\n      pvNoTree(e, t))")
+rep("coNoDig(e, t)\n  )", "coNoDig(e, t) ||\n    pvInSiloPad(e, t)\n  )")
+
+# Per-material clods (brown soil, crushed grey gravel, black hot-mix asphalt)
+rep("    clod: new Cl({ color: `#5e432d`, roughness: 1, flatShading: !0 }),", "    clod: new Cl({ color: `#ffffff`, roughness: 1, flatShading: !0 }),")
+rep(
+    "  coMoonDir = new G(-0.4, 0.8, 0.3).normalize();\nfunction bO()",
+    "  coMoonDir = new G(-0.4, 0.8, 0.3).normalize(),\n  pvColSoil = new q(`#5e432d`),\n  pvColGravel = new q(`#9ea2a6`),\n  pvColAsphalt = new q(`#202226`);\nfunction bO()",
+)
+rep(
+    "    let I = new _o(new Zc(1, 0), e.clod, 260);\n    ((I.castShadow = !0), (I.frustumCulled = !1), (I.count = 0));",
+    "    let I = new _o(new Zc(1, 0), e.clod, 260);\n    ((I.castShadow = !0), (I.frustumCulled = !1), I.setColorAt(0, new q(`#5e432d`)), (I.count = 0));",
+)
+rep(
+    "            I.setMatrixAt(e, te));\n        }\n        I.instanceMatrix.needsUpdate = !0;",
+    "            I.setMatrixAt(e, te),\n            I.setColorAt(e, t.mat === `gravel` ? pvColGravel : t.mat === `asphalt` ? pvColAsphalt : pvColSoil));\n        }\n        I.instanceMatrix.needsUpdate = !0;\n        if (I.instanceColor) I.instanceColor.needsUpdate = !0;",
+)
+rep(
+    "    if (tkCatch(n)) {\n      ((e.clods[t] = e.clods[e.clods.length - 1]), e.clods.pop());\n      continue;\n    }",
+    "    if (tkCatch(n) || pvCatch(n)) {\n      ((e.clods[t] = e.clods[e.clods.length - 1]), e.clods.pop());\n      continue;\n    }",
+)
+rep(
+    "    n.y <= r &&\n      (SC.deposit(n.x, n.z, n.vol, 0.42),",
+    "    n.y <= r &&\n      (pvClodLanded(n),\n      SC.deposit(n.x, n.z, n.vol, 0.42),",
+)
+
+# Grass blades cleared wherever gravel or asphalt is laid
+rep(
+    "          uMask: { value: ww() },\n          uDig: { value: Pw() },",
+    "          uMask: { value: ww() },\n          uRoadSurf: { value: pvRoadTex() },\n          uDig: { value: Pw() },",
+)
+rep(
+    "uniform sampler2D uHeight; uniform sampler2D uDensity; uniform sampler2D uMask;",
+    "uniform sampler2D uHeight; uniform sampler2D uDensity; uniform sampler2D uMask; uniform sampler2D uRoadSurf;",
+)
+rep(
+    "vec4 mk = texture(uMask, maskUv(wp));\nfloat dc = length(wp - uCenter) / (uTile * 0.5);\nfloat dgv = digAt(wp);\nfloat keep = step(aOff.z, dn * 0.98) * (1.0 - smoothstep(0.25, 0.45, mk.r)) * (1.0 - smoothstep(0.22, 0.52, mk.b)) * (1.0 - smoothstep(0.72, 1.0, dc)) * (1.0 - smoothstep(0.025, 0.07, abs(dgv)));",
+    "vec4 mk = texture(uMask, maskUv(wp));\nvec4 mrs = texture(uRoadSurf, maskUv(wp));\nfloat dc = length(wp - uCenter) / (uTile * 0.5);\nfloat dgv = digAt(wp);\nfloat keep = step(aOff.z, dn * 0.98) * (1.0 - smoothstep(0.25, 0.45, mk.r)) * (1.0 - smoothstep(0.22, 0.52, mk.b)) * (1.0 - smoothstep(0.18, 0.45, max(mrs.r, mrs.g))) * (1.0 - smoothstep(0.72, 1.0, dc)) * (1.0 - smoothstep(0.025, 0.07, abs(dgv)));",
+)
+
+# Terrain shader XE: silo concrete aprons + live crushed gravel, loose/spread aggregate, fresh hot-mix & compacted asphalt + lane markings
+rep(
+    "      uCompDrive: { value: new rr(-78.5, -24.0, -68.5, -8.5) },",
+    """      uCompDrive: { value: new rr(-78.5, -24.0, -68.5, -8.5) },
+      uRoadSurf: { value: pvRoadTex() },
+      uGravelPad: { value: new rr(PV_SILOS[0].pad.x0, PV_SILOS[0].pad.z0, PV_SILOS[0].pad.x1, PV_SILOS[0].pad.z1) },
+      uAsphaltPad: { value: new rr(PV_SILOS[1].pad.x0, PV_SILOS[1].pad.z0, PV_SILOS[1].pad.x1, PV_SILOS[1].pad.z1) },""",
+)
+rep(
+    "uniform vec4 uCompDrive;",
+    "uniform vec4 uCompDrive;\nuniform sampler2D uRoadSurf;\nuniform vec4 uGravelPad;\nuniform vec4 uAsphaltPad;",
+)
+rep(
+    """  vec2 dap = max(uCompApron.xy - P, P - uCompApron.zw);
+  float wCA = 1.0 - smoothstep(-0.18, 0.18, max(dap.x, dap.y));
+  BLEND(wCA, 7.0, 3.6, 0.84, vec3(0.98, 0.96, 0.92))
+}""",
+    """  vec2 dap = max(uCompApron.xy - P, P - uCompApron.zw);
+  float wCA = 1.0 - smoothstep(-0.18, 0.18, max(dap.x, dap.y));
+  BLEND(wCA, 7.0, 3.6, 0.84, vec3(0.98, 0.96, 0.92))
+  vec2 dgp = max(uGravelPad.xy - P, P - uGravelPad.zw);
+  float wGP = 1.0 - smoothstep(-0.22, 0.22, max(dgp.x, dgp.y));
+  BLEND(wGP, 7.0, 3.8, 0.84, vec3(0.92, 0.91, 0.88))
+  vec2 dapp = max(uAsphaltPad.xy - P, P - uAsphaltPad.zw);
+  float wAP = 1.0 - smoothstep(-0.22, 0.22, max(dapp.x, dapp.y));
+  BLEND(wAP, 7.0, 3.8, 0.82, vec3(0.84, 0.84, 0.86))
+}""",
+)
+rep(
+    "diffuseColor.rgb *= tC;",
+    """// Live Roadwork Simulation Layers: Crushed Gravel (mr.r), Fresh/Compacted Asphalt (mr.g) & Compaction (mr.b)
+{
+  vec4 mr = texture(uRoadSurf, P / uMapSize + 0.5);
+  float wGrv = smoothstep(0.14, 0.55, mr.r) * (1.0 - smoothstep(0.18, 0.52, mr.g));
+  float wAsp = smoothstep(0.18, 0.55, mr.g);
+  if (wGrv > 0.003) {
+    float compG = smoothstep(0.35, 0.78, mr.b);
+    float stone = 0.84 + 0.32 * tNoise(P * 3.8 + tNoise(P * 1.6));
+    vec2 uvg = P / 1.85;
+    vec3 cGrvLoose = sD(7.0, uvg, kAT) * vec3(0.76, 0.76, 0.74) * stone;
+    vec3 cGrvComp = sD(7.0, P / 2.2, kAT) * vec3(0.58, 0.59, 0.58) * (0.94 + 0.12 * tNoise(P * 2.9));
+    vec3 cGrv = mix(cGrvLoose, cGrvComp, compG);
+    tC = mix(tC, cGrv, wGrv);
+    tN = mix(tN, sN(5.0, uvg) * mix(0.85, 0.3, compG), wGrv * 0.75);
+    tR = mix(tR, mix(0.95, 0.78, compG), wGrv);
+  }
+  if (wAsp > 0.003) {
+    float compA = smoothstep(0.42, 0.85, mr.b);
+    float gran = 0.9 + 0.2 * tNoise(P * 4.5);
+    vec2 uva = P / 4.2;
+    vec3 cHot = sD(4.0, uva, kAT) * vec3(0.24, 0.23, 0.23) * gran;
+    vec3 cComp = sD(4.0, P / 4.8, kAT) * vec3(0.36, 0.37, 0.40);
+    vec3 cAsp = mix(cHot, cComp, compA);
+    tC = mix(tC, cAsp, wAsp);
+    tN = mix(tN, sN(4.0, uva) * mix(0.75, 0.22, compA), wAsp * 0.8);
+    tR = mix(tR, mix(0.92, 0.48, compA), wAsp);
+    float freshStripe = paint * wAsp * smoothstep(0.65, 0.88, mr.b);
+    tC = mix(tC, vec3(0.88, 0.88, 0.84), freshStripe);
+    tR = mix(tR, 0.52, freshStripe);
+  }
+}
+diffuseColor.rgb *= tC;""",
+)
+
+# Inject paving/roller/paver modules
+rep("function mw(e, t, n) {", pvcore + "\nfunction mw(e, t, n) {")
+rep("\nvar ST = Gw(Sw),", "\n" + rlcore + "\n" + pvcarcore + "\nvar ST = Gw(Sw),")
+rep("\nvar nD = (e, t, n) => new G(e, t, n),", "\n" + pvrender + "\n" + rlrender + "\n" + pvcarrender + "\nvar nD = (e, t, n) => new G(e, t, n),")
+rep("\nfunction qD() {", "\n" + rlui + "\n" + pvcarui + "\n" + pvprog_ui + "\nfunction qD() {")
+
+# Audio banks for Roller & Paver
+rep(
+    """    grader: {
+      idle: `truck_idle.wav`,
+      load: `truck_load.wav`,
+      crank: `truck_crank.wav`,
+      baseRpm: 720,
+      trim: 0.82,
+      crankGain: 0.95,
+      filterBase: 760,
+      filterRpm: 1.28,
+      filterLoad: 1550,
+      subMul: 0.32,
+    },""",
+    """    grader: {
+      idle: `truck_idle.wav`,
+      load: `truck_load.wav`,
+      crank: `truck_crank.wav`,
+      baseRpm: 720,
+      trim: 0.82,
+      crankGain: 0.95,
+      filterBase: 760,
+      filterRpm: 1.28,
+      filterLoad: 1550,
+      subMul: 0.32,
+    },
+    roller: {
+      idle: `truck_idle.wav`,
+      load: `truck_load.wav`,
+      crank: `truck_crank.wav`,
+      baseRpm: 780,
+      trim: 0.78,
+      crankGain: 0.92,
+      filterBase: 790,
+      filterRpm: 1.3,
+      filterLoad: 1500,
+      subMul: 0.3,
+    },
+    paver: {
+      idle: `engine_idle.wav`,
+      load: `engine_load.wav`,
+      crank: null,
+      baseRpm: 840,
+      trim: 0.88,
+      crankGain: 0.85,
+      filterBase: 860,
+      filterRpm: 1.32,
+      filterLoad: 1550,
+      subMul: 0.28,
+    },""",
+)
+rep(
+    "veh === `jcb` || veh === `grader`\n                ? 0.065",
+    "veh === `jcb` || veh === `grader` || veh === `roller` || veh === `paver`\n                ? 0.065",
+)
+rep(
+    "(veh === `truck` || veh === `jcb` || veh === `grader`) &&",
+    "(veh === `truck` || veh === `jcb` || veh === `grader` || veh === `roller` || veh === `paver`) &&",
+)
+rep(
+    "!v && !tkA && !jbA && !grA && IS.crank(`tractor`)",
+    "!v && !tkA && !jbA && !grA && !rlA && !pvA && IS.crank(`tractor`)",
+)
+
+# HUD bar, prompts, help, layout, PVProgress, menu
+rep(
+    "    gr = e.vehicle === `grader`,\n    n = t || jb || gr\n      ? [`Chase`, `Cab`, `Side`]",
+    "    gr = e.vehicle === `grader`,\n    rl = e.vehicle === `roller`,\n    pv = e.vehicle === `paver`,\n    n = t || jb || gr\n      ? [`Chase`, `Cab`, `Side`]\n      : rl\n        ? [`Chase`, `Cab`, `Drum`]\n        : pv\n          ? [`Chase`, `Ops`, `Screed`]",
+)
+rep(
+    "on: t ? e.excEngine : k ? e.truckEngine : jb ? e.jcbEngine : gr ? e.graderEngine : e.engine,",
+    "on: t ? e.excEngine : k ? e.truckEngine : jb ? e.jcbEngine : gr ? e.graderEngine : rl ? e.rollerEngine : pv ? e.paverEngine : e.engine,",
+)
+rep(
+    "      !t &&\n        !k &&\n        !jb &&\n        !gr &&\n        (0, Z.jsx)(XD, {",
+    "      !t &&\n        !k &&\n        !jb &&\n        !gr &&\n        !rl &&\n        !pv &&\n        (0, Z.jsx)(XD, {",
+)
+rep(
+    "    gr = eC((e) => e.vehicle === `grader`),\n    [n, r] = (0, y.useState)(Date.now());",
+    "    gr = eC((e) => e.vehicle === `grader`),\n    rl = eC((e) => e.vehicle === `roller`),\n    pv = eC((e) => e.vehicle === `paver`),\n    [n, r] = (0, y.useState)(Date.now());",
+)
+rep(
+    "      : gr\n        ? (i = grPrompt(e))",
+    "      : pv\n        ? (i = pvPrompt(e))\n        : rl\n          ? (i = rlPrompt(e))\n          : gr\n            ? (i = grPrompt(e))",
+)
+rep(
+    "    gr = eC.getState().vehicle === `grader`;\n  return (0, Z.jsxs)(`div`, {\n    className: `hud-panel hud-help`,",
+    "    gr = eC.getState().vehicle === `grader`,\n    rl = eC.getState().vehicle === `roller`,\n    pv = eC.getState().vehicle === `paver`;\n  return (0, Z.jsxs)(`div`, {\n    className: `hud-panel hud-help`,",
+)
+rep(
+    "        children: gr\n          ? `Motor grader controls`",
+    "        children: pv\n          ? `Asphalt paver controls`\n          : rl\n            ? `Vibratory road roller controls`\n            : gr\n              ? `Motor grader controls`",
+)
+rep(
+    "      (gr\n        ? GRhelp",
+    "      (pv\n        ? PVhelp\n        : rl\n          ? RLhelp\n          : gr\n            ? GRhelp",
+)
+rep(
+    "    gr = tkVeh === `grader`;\n",
+    "    gr = tkVeh === `grader`,\n    rl = tkVeh === `roller`,\n    pv = tkVeh === `paver`;\n",
+)
+rep(
+    "        children: gr\n          ? (0, Z.jsx)(grGauges, {})",
+    "        children: pv\n          ? [(0, Z.jsx)(pvGauges, {}), (0, Z.jsx)(PVProgress, {})]\n          : rl\n            ? [(0, Z.jsx)(rlGauges, {}), (0, Z.jsx)(PVProgress, {})]\n            : gr\n              ? [(0, Z.jsx)(grGauges, {}), (0, Z.jsx)(PVProgress, {})]",
+)
+rep(
+    "          : k\n          ? (0, Z.jsx)(tkGauges, {})",
+    "          : k\n          ? [(0, Z.jsx)(tkGauges, {}), (0, Z.jsx)(PVProgress, {})]",
+)
+rep(
+    "        children: gr\n          ? (0, Z.jsx)(grControls, {})",
+    "        children: pv\n          ? (0, Z.jsx)(pvControls, {})\n          : rl\n            ? (0, Z.jsx)(rlControls, {})\n            : gr\n              ? (0, Z.jsx)(grControls, {})",
+)
+rep(
+    "          (0, Z.jsxs)(`div`, {\n            className: `menu-buttons`,",
+    "          (0, Z.jsxs)(`div`, {\n            className: `menu-buttons`,\n            style: { display: `grid`, gridTemplateColumns: `repeat(2, minmax(0, 1fr))`, maxWidth: 460, gap: 8 },",
+)
+rep(
+    "                  ` Play Grader`,\n                ],\n              }),\n",
+    "                  ` Play Grader`,\n                ],\n              }),\n"
+    "              (0, Z.jsxs)(`button`, {\n                type: `button`,\n                className: `menu-btn`,\n                onClick: () => lO(`roller`),\n                children: [\n                  (0, Z.jsx)(RLD, { size: 20, \"aria-hidden\": !0 }),\n                  ` Play Road Roller`,\n                ],\n              }),\n"
+    "              (0, Z.jsxs)(`button`, {\n                type: `button`,\n                className: `menu-btn`,\n                onClick: () => lO(`paver`),\n                children: [\n                  (0, Z.jsx)(PVD, { size: 20, \"aria-hidden\": !0 }),\n                  ` Play Asphalt Paver`,\n                ],\n              }),\n",
+)
+rep("tractor, excavator, dump truck, JCB and grader…", "tractor, excavator, dump truck, JCB, grader, roller and paver…")
+
+# Minimap: Silos + live RS_MASK layers + Roller/Paver markers
+rep(
+    "        n.restore(),\n        (n.fillStyle = `#b5462e`));",
+    """        n.restore(),
+        PV_SILOS.forEach((s) => {
+          n.save();
+          n.fillStyle = s.id === `gravel` ? `#8e9194` : `#2b2e33`;
+          n.strokeStyle = s.id === `gravel` ? `#f2b318` : `#ff6b1a`;
+          n.lineWidth = 1.6 * r;
+          n.fillRect(i(s.x - 4), i(s.z - 4), 8 * r, 8 * r);
+          n.strokeRect(i(s.x - 4), i(s.z - 4), 8 * r, 8 * r);
+          n.fillStyle = `#ffffff`;
+          n.font = `700 ${Math.max(7, Math.round(6 * r))}px sans-serif`;
+          n.textAlign = `center`;
+          n.textBaseline = `middle`;
+          n.fillText(s.id === `gravel` ? `Ç` : `A`, i(s.x), i(s.z));
+          n.restore();
+        }),
+        (n.fillStyle = `#b5462e`));""",
+)
+rep(
+    "        gs = -1,\n        d = -1,",
+    "        gs = -1,\n        rv = -1,\n        d = -1,\n        rc = RS_MASK.n / 256,",
+)
+rep(
+    "(Sw.tilledCells !== u || Sw.scrapedCells !== gs || SC.version !== d) && f % 4 == 0)) {\n            ((u = Sw.tilledCells), (gs = Sw.scrapedCells), (d = SC.version));",
+    "(Sw.tilledCells !== u || Sw.scrapedCells !== gs || RS_MASK.version !== rv || SC.version !== d) && f % 4 == 0)) {\n            ((u = Sw.tilledCells), (gs = Sw.scrapedCells), (rv = RS_MASK.version), (d = SC.version));",
+)
+rep(
+    """                ((s.data[i] = gf ? 154 : a ? 38 : o ? 150 : 70),
+                  (s.data[i + 1] = gf ? 152 : a ? 24 : o ? 112 : 44),
+                  (s.data[i + 2] = gf ? 144 : a ? 14 : o ? 72 : 26),
+                  (s.data[i + 3] = gf || n > 100 || a || o ? 255 : 0));""",
+    """                let rOff = (Math.floor(e * rc) * RS_MASK.n + Math.floor(t * rc)) * 4,
+                  rg = RS_MASK.data[rOff],
+                  ra = RS_MASK.data[rOff + 1],
+                  rb = RS_MASK.data[rOff + 2],
+                  hasAsp = ra > 100,
+                  hasGrv = rg > 100 && !hasAsp;
+                ((s.data[i] = hasAsp ? (rb > 170 ? 28 : 54) : hasGrv ? 168 : gf ? 154 : a ? 38 : o ? 150 : 70),
+                  (s.data[i + 1] = hasAsp ? (rb > 170 ? 31 : 54) : hasGrv ? 170 : gf ? 152 : a ? 24 : o ? 112 : 44),
+                  (s.data[i + 2] = hasAsp ? (rb > 170 ? 36 : 58) : hasGrv ? 166 : gf ? 144 : a ? 14 : o ? 72 : 26),
+                  (s.data[i + 3] = hasAsp || hasGrv || gf || n > 100 || a || o ? 255 : 0));""",
+)
+rep(
+    "            gg = tkVeh === `grader`,\n            r = gg ? GR : jj ? JB : kk ? TK :",
+    "            gg = tkVeh === `grader`,\n            rlv = tkVeh === `roller`,\n            pvv = tkVeh === `paver`,\n            r = pvv ? PV : rlv ? RL : gg ? GR : jj ? JB : kk ? TK :",
+)
+rep(
+    "            gg ||\n              (l.save(),",
+    "            rlv ||\n              (l.save(),\n              l.translate(RL.x, RL.z),\n              l.rotate(-RL.yaw),\n              (l.fillStyle = `#e6a817`),\n              l.fillRect(-3.4, -2, 6.8, 9),\n              l.strokeRect(-3.4, -2, 6.8, 9),\n              l.restore()),\n            pvv ||\n              (l.save(),\n              l.translate(PV.x, PV.z),\n              l.rotate(-PV.yaw),\n              (l.fillStyle = `#e86c16`),\n              l.fillRect(-3.8, -3, 7.6, 8.5),\n              l.strokeRect(-3.8, -3, 7.6, 8.5),\n              l.restore()),\n            gg ||\n              (l.save(),",
+)
+
+# Main loop bO(): plants, roller, paver, exhaust/steam, cameras, HUD state, IS audio, render primitives
+rep(
+    "    gr = grUse(),\n    co = coUse(),",
+    "    gr = grUse(),\n    rl = rlUse(),\n    pv = pvUseCar(),\n    plants = pvUsePlants(),\n    co = coUse(),",
+)
+rep(
+    "        grA = _.vehicle === `grader`,\n        y = v || tkA || jbA || grA || _.menu ? vO : mC();",
+    "        grA = _.vehicle === `grader`,\n        rlA = _.vehicle === `roller`,\n        pvA = _.vehicle === `paver`,\n        y = v || tkA || jbA || grA || rlA || pvA || _.menu ? vO : mC();",
+)
+rep("grA ? grReset(GR) : Kw(ST)", "grA ? grReset(GR) : rlA ? rlReset(RL) : pvA ? pvReset(PV) : Kw(ST)")
+rep("attachPressed: !v && !tkA && !jbA && !grA && rC.attachPressed,", "attachPressed: !v && !tkA && !jbA && !grA && !rlA && !pvA && rC.attachPressed,")
+rep(
+    "      coStep(g, v ? CT : tkA ? TK : jbA ? JB : grA ? GR : ST.tr);",
+    """      pvSiloStep(g);
+      rlStep(RL, rlA && !_.menu ? rlInput() : null, g, _.rollerEngine);
+      for (let ev of RL.events)
+        ev.type === `crank`
+          ? rlA && IS.crank(`roller`)
+          : ev.type === `bump`
+            ? IS.thud(ev.strength / 3)
+            : !rlA
+              ? 0
+              : ev.type === `vibeOn`
+                ? (IS.clunk(0.55), nC(`Vibratory drum ON (34 Hz) — rolling compacts gravel & asphalt`))
+                : ev.type === `vibeOff`
+                  ? (IS.clunk(0.4), nC(`Drum vibration OFF — static finish roll`))
+                  : ev.type === `waterOn`
+                    ? nC(`Water spray mist ON (prevents hot asphalt sticking)`)
+                    : ev.type === `waterOff` && nC(`Water spray OFF`);
+      RL.events.length = 0;
+      pvCarStep(PV, pvA && !_.menu ? pvInput() : null, g, _.paverEngine);
+      for (let ev of PV.events)
+        ev.type === `crank`
+          ? pvA && IS.crank(`paver`)
+          : ev.type === `bump`
+            ? IS.thud(ev.strength / 3)
+            : !pvA
+              ? 0
+              : ev.type === `screedDown`
+                ? (IS.clunk(0.5), nC(`Heated screed lowered — drive forward (W) to lay 3.8m asphalt`))
+                : ev.type === `screedUp` && (IS.clunk(0.45), nC(`Screed lifted for transport`));
+      PV.events.length = 0;
+      coStep(g, v ? CT : tkA ? TK : jbA ? JB : grA ? GR : rlA ? RL : pvA ? PV : ST.tr);""",
+)
+rep(
+    "        C = v ? CT.x : tkA ? TK.x : jbA ? JB.x : grA ? GR.x : x.x,\n        w = v ? CT.z : tkA ? TK.z : jbA ? JB.z : grA ? GR.z : x.z;",
+    "        C = v ? CT.x : tkA ? TK.x : jbA ? JB.x : grA ? GR.x : rlA ? RL.x : pvA ? PV.x : x.x,\n        w = v ? CT.z : tkA ? TK.z : jbA ? JB.z : grA ? GR.z : rlA ? RL.z : pvA ? PV.z : x.z;",
+)
+rep("v || tkA || jbA || grA ? { ..._, head: !1, work: !1, beacon: !1, hood: !1 } : _,", "v || tkA || jbA || grA || rlA || pvA ? { ..._, head: !1, work: !1, beacon: !1, hood: !1 } : _,")
+rep(
+    "        gr.update(GR, _, h.t, g, grA),\n        co.update(CO, h.night, h.t, g),",
+    "        gr.update(GR, _, h.t, g, grA),\n        rl.update(RL, _, h.t, g, rlA),\n        pv.update(PV, _, h.t, g, pvA),\n        plants.update(PV_STATE, h.night, h.t, g),\n        co.update(CO, h.night, h.t, g),",
+)
+rep(
+    "        h.maskT > 0.12 && ((h.maskT = 0), Tw()));",
+    "        h.maskT > 0.12 && ((h.maskT = 0), Tw(), pvFlushTex()));",
+)
+rep(
+    "      if (CT.digging > 0.05 || CT.bladeWork > 0.05)",
+    """      if (RL.running)
+        for (
+          h.rlSmoke = (h.rlSmoke || 0) + g * (3 + RL.eload * 18),
+            rl.root.localToWorld(hO.copy(rl.exhaust));
+          h.rlSmoke > 1;
+        ) {
+          h.rlSmoke--;
+          let dk = RL.eload > 0.6;
+          r.emit(hO.x, hO.y, hO.z, (Math.random() - 0.5) * 0.25, 1.35 + Math.random() * 0.45, (Math.random() - 0.5) * 0.25, 1.6, 0.4, dk ? mO : pO, dk ? 0.45 : 0.2);
+        }
+      if (RL.steaming > 0.15)
+        for (h.rlSteam = (h.rlSteam || 0) + g * 20 * RL.steaming; h.rlSteam > 1; ) {
+          h.rlSteam--;
+          r.emit(
+            RL.drumTip.x + (Math.random() - 0.5) * 1.6,
+            RL.drumTip.y + 0.18,
+            RL.drumTip.z + (Math.random() - 0.5) * 0.4,
+            (Math.random() - 0.5) * 0.4,
+            0.7 + Math.random() * 0.6,
+            (Math.random() - 0.5) * 0.4,
+            1.6,
+            0.9,
+            pO,
+            0.22,
+          );
+        }
+      if (PV.running)
+        for (
+          h.pvSmoke = (h.pvSmoke || 0) + g * (3 + PV.eload * 18),
+            pv.root.localToWorld(hO.copy(pv.exhaust));
+          h.pvSmoke > 1;
+        ) {
+          h.pvSmoke--;
+          let dk = PV.eload > 0.6;
+          r.emit(hO.x, hO.y, hO.z, (Math.random() - 0.5) * 0.25, 1.35 + Math.random() * 0.4, (Math.random() - 0.5) * 0.25, 1.5, 0.38, dk ? mO : pO, dk ? 0.45 : 0.2);
+        }
+      if (PV.paving > 0.15)
+        for (
+          h.pvSteam = (h.pvSteam || 0) + g * 18 * PV.paving,
+            pv.root.localToWorld(hO.copy(pv.screedTip));
+          h.pvSteam > 1;
+        ) {
+          h.pvSteam--;
+          r.emit(
+            hO.x + (Math.random() - 0.5) * 2.8,
+            hO.y + 0.14,
+            hO.z + (Math.random() - 0.5) * 0.4,
+            (Math.random() - 0.5) * 0.35,
+            0.75 + Math.random() * 0.5,
+            (Math.random() - 0.5) * 0.35,
+            1.8,
+            0.95,
+            pO,
+            0.24,
+          );
+        }
+      for (h.aspStack = (h.aspStack || 0) + g * 3.5; h.aspStack > 1; ) {
+        h.aspStack--;
+        r.emit(plants.stackTip.x + (Math.random() - 0.5) * 0.3, plants.stackTip.y, plants.stackTip.z + (Math.random() - 0.5) * 0.3, 0.3, 1.8 + Math.random() * 0.6, 0.2, 2.8, 1.4, pO, 0.18);
+      }
+      if (CT.digging > 0.05 || CT.bladeWork > 0.05)""",
+)
+rep(
+    "            : grA\n            ? hO.set(GR.x + Math.sin(GR.yaw) * 1.5, GR.y + 2.05, GR.z + Math.cos(GR.yaw) * 1.5)",
+    "            : grA\n            ? hO.set(GR.x + Math.sin(GR.yaw) * 1.5, GR.y + 2.05, GR.z + Math.cos(GR.yaw) * 1.5)\n            : rlA\n            ? hO.set(RL.x + Math.sin(RL.yaw) * 1.3, RL.y + 1.85, RL.z + Math.cos(RL.yaw) * 1.3)\n            : pvA\n            ? hO.set(PV.x + Math.sin(PV.yaw) * 0.3, PV.y + 1.8, PV.z + Math.cos(PV.yaw) * 0.3)",
+)
+rep(
+    "      } else if (jbA && _.cam === 1) {",
+    """      } else if (rlA && _.cam === 1) {
+        let rE = rl.root.localToWorld(rl.eye.clone());
+        E.position.copy(rE);
+        let rP0 = iC.pitch - 0.16,
+          rDir = new G(
+            Math.sin(iC.yaw) * Math.cos(rP0),
+            Math.sin(rP0),
+            Math.cos(iC.yaw) * Math.cos(rP0),
+          ).applyQuaternion(rl.root.quaternion);
+        (E.up.set(0, 1, 0), E.lookAt(rE.add(rDir)), (E.fov = iC.fov), (h.camInit = !1));
+      } else if (rlA && _.cam === 2) {
+        let rP = rl.root.localToWorld(new G(4.4, 2.2, 2.8)),
+          rL = rl.root.localToWorld(new G(0, 0.55, RLS.DRUM_Z));
+        ((rP.y = Math.max(rP.y, nw(rP.x, rP.z) + 0.9)),
+          E.position.lerp(rP, h.camInit ? EC(6, g) : 1),
+          E.up.set(0, 1, 0),
+          E.lookAt(rL),
+          (E.fov = 58),
+          (h.camInit = !0));
+      } else if (rlA) {
+        let ra = RL.yaw + Math.PI + iC.yaw,
+          rp = CC(0.28 + iC.pitch, -0.1, 1.3),
+          rn = iC.dist,
+          rC2 = new G(
+            D.x + Math.sin(ra) * Math.cos(rp) * rn,
+            D.y + Math.sin(rp) * rn,
+            D.z + Math.cos(ra) * Math.cos(rp) * rn,
+          );
+        ((rC2.y = Math.max(rC2.y, nw(rC2.x, rC2.z) + 0.9)),
+          h.camInit ? E.position.lerp(rC2, EC(5, g)) : E.position.copy(rC2),
+          (h.camInit = !0),
+          E.up.set(0, 1, 0),
+          E.lookAt(D),
+          (E.fov = 62));
+      } else if (pvA && _.cam === 1) {
+        let pE2 = pv.root.localToWorld(pv.eye.clone());
+        E.position.copy(pE2);
+        let pP0 = iC.pitch - 0.16,
+          pDir = new G(
+            Math.sin(iC.yaw) * Math.cos(pP0),
+            Math.sin(pP0),
+            Math.cos(iC.yaw) * Math.cos(pP0),
+          ).applyQuaternion(pv.root.quaternion);
+        (E.up.set(0, 1, 0), E.lookAt(pE2.add(pDir)), (E.fov = iC.fov), (h.camInit = !1));
+      } else if (pvA && _.cam === 2) {
+        let pP2 = pv.root.localToWorld(new G(4.4, 2.5, -2.5)),
+          pL2 = pv.root.localToWorld(new G(0, 0.35, PVS.SCREED_Z));
+        ((pP2.y = Math.max(pP2.y, nw(pP2.x, pP2.z) + 0.9)),
+          E.position.lerp(pP2, h.camInit ? EC(6, g) : 1),
+          E.up.set(0, 1, 0),
+          E.lookAt(pL2),
+          (E.fov = 58),
+          (h.camInit = !0));
+      } else if (pvA) {
+        let pa = PV.yaw + Math.PI + iC.yaw,
+          pp = CC(0.3 + iC.pitch, -0.1, 1.3),
+          pn = iC.dist,
+          pC2 = new G(
+            D.x + Math.sin(pa) * Math.cos(pp) * pn,
+            D.y + Math.sin(pp) * pn,
+            D.z + Math.cos(pa) * Math.cos(pp) * pn,
+          );
+        ((pC2.y = Math.max(pC2.y, nw(pC2.x, pC2.z) + 0.9)),
+          h.camInit ? E.position.lerp(pC2, EC(5, g)) : E.position.copy(pC2),
+          (h.camInit = !0),
+          E.up.set(0, 1, 0),
+          E.lookAt(D),
+          (E.fov = 62));
+      } else if (jbA && _.cam === 1) {""",
+)
+rep(
+    "            speed: Math.abs(v ? CT.v : tkA ? TK.v : jbA ? JB.v : grA ? GR.v : x.v) * 3.6,\n            rpm: v ? CT.rpm : tkA ? TK.rpm : jbA ? JB.rpm : grA ? GR.rpm : x.rpm,",
+    "            speed: Math.abs(v ? CT.v : tkA ? TK.v : jbA ? JB.v : grA ? GR.v : rlA ? RL.v : pvA ? PV.v : x.v) * 3.6,\n            rpm: v ? CT.rpm : tkA ? TK.rpm : jbA ? JB.rpm : grA ? GR.rpm : rlA ? RL.rpm : pvA ? PV.rpm : x.rpm,",
+)
+rep(
+    "            running: v ? CT.running : tkA ? TK.running : jbA ? JB.running : grA ? GR.running : x.running,",
+    "            running: v ? CT.running : tkA ? TK.running : jbA ? JB.running : grA ? GR.running : rlA ? RL.running : pvA ? PV.running : x.running,",
+)
+rep(
+    "            grRev: GR.v < -0.3,\n          })),",
+    "            grRev: GR.v < -0.3,\n            rlVibe: RL.vibe,\n            rlWater: RL.sprinkler,\n            rlWork: RL.compacting > 0.08,\n            rlSteam: RL.steaming > 0.15,\n            rlArea: RL.compactM2,\n            rlRev: RL.v < -0.25,\n            pvLoad: PV.load,\n            pvScreed: PV.screed,\n            pvScreedDown: PV.screedDown,\n            pvWork: PV.paving > 0.08,\n            pvArea: PV.pavedM2,\n            pvRev: PV.v < -0.2,\n            tMat: TK.mat,\n            pvNearSilo: PV_STATE.nearSilo,\n            pvFilling: PV_STATE.filling,\n            pvFillAuto: PV_STATE.autoFill,\n            pvZones: PV_STATE.zones,\n          })),",
+)
+rep(
+    "        grA\n          ? IS.update({",
+    """        rlA
+          ? IS.update({
+              rpm: RL.rpm,
+              load: RL.eload,
+              running: RL.running,
+              working: Math.min(1, Math.max(RL.compacting, RL.vibeAmp * 0.45)),
+              speed: Math.abs(RL.v),
+              rough: 0.55,
+              hydraulic: RL.vibe && RL.running ? 1 : 0,
+              vehicle: `roller`,
+              cranking: RL.engine && !RL.running,
+              reverse: RL.v < -0.25,
+            })
+          : pvA
+          ? IS.update({
+              rpm: PV.rpm,
+              load: PV.eload,
+              running: PV.running,
+              working: Math.min(1, PV.paving),
+              speed: Math.abs(PV.v),
+              rough: 0.45,
+              hydraulic: PV.paving > 0.1 ? 1 : 0,
+              vehicle: `paver`,
+              cranking: PV.engine && !PV.running,
+              reverse: PV.v < -0.2,
+            })
+          : grA
+          ? IS.update({""",
+)
+rep(
+    "        (0, Z.jsx)(`primitive`, { object: co.root }),",
+    "        (0, Z.jsx)(`primitive`, { object: rl.root }),\n        (0, Z.jsx)(`primitive`, { object: pv.root }),\n        (0, Z.jsx)(`primitive`, { object: plants.root }),\n        (0, Z.jsx)(`primitive`, { object: co.root }),",
 )
 
 # ---- write output

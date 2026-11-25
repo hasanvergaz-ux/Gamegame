@@ -47,7 +47,7 @@ var JBS = {
     stick: { min: -3, max: -0.4, speed: 0.8, accel: 3.2 },
     bucket: { min: -2.5, max: 0.6, speed: 1.3, accel: 5.5 },
   },
-  JBspawn = { x: -36, z: 52, yaw: Math.PI / 2 },
+  JBspawn = { x: -62.5, z: -45.5, yaw: 0 },
   jbRng = DC(4242),
   jbP = { x: 0, y: 0, z: 0 },
   jbQ = { x: 0, y: 0, z: 0 },

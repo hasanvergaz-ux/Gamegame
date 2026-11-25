@@ -27,7 +27,7 @@ var TKS = {
     IDLE_RPM: 700,
     MAX_RPM: 2200,
   },
-  TKspawn = { x: -43.8, z: 46.6, yaw: -Math.PI / 2 },
+  TKspawn = { x: -67.5, z: -45.0, yaw: 0 },
   tkRng = DC(911),
   tkTmp = { x: 0, y: 0, z: 0 },
   TK = tkNew();
@@ -36,7 +36,7 @@ function tkNew() {
     x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0,
     v: 0, steer: 0, wheelA: 0, gas: 0,
     bed: 0, bedCmd: 0, bedMoving: !1,
-    load: 0, hauled: 0, pour: 0, dumping: 0,
+    load: 0, mat: `soil`, hauled: 0, pour: 0, dumping: 0,
     engine: !1, running: !1, crankEnd: 0, t: 0, rpm: 0, eload: 0,
     events: [],
   };
@@ -117,7 +117,11 @@ function tkStep(st, inp, dt, engineOn) {
     ((hit = hT(st, cx, cz, TKS.R, uw) || hit),
       (hit = hT(st, cx, cz, TKS.R, dw) || hit),
       (hit = hT(st, cx, cz, TKS.R, gT) || hit),
-      (hit = hT(st, cx, cz, TKS.R, JBC) || hit));
+      (hit = hT(st, cx, cz, TKS.R, JBC) || hit),
+      (typeof GRC < `u` && (hit = hT(st, cx, cz, TKS.R, GRC) || hit)),
+      (typeof RLC < `u` && (hit = hT(st, cx, cz, TKS.R, RLC) || hit)),
+      (typeof PVC < `u` && (hit = hT(st, cx, cz, TKS.R, PVC) || hit)),
+      (typeof COC < `u` && (hit = hT(st, cx, cz, TKS.R, COC) || hit)));
   }
   (hit &&
     (Math.abs(st.v) > 1.5 &&
@@ -176,8 +180,10 @@ function tkStep(st, inp, dt, engineOn) {
       vz: -cosY * sp + (tkRng() - 0.5) * 0.6 + cosY * st.v,
       vol: vol,
       spin: tkRng() * 6.28,
+      mat: st.mat || `soil`,
     });
   }
+  if (st.load <= 1e-3 && st.pour <= 1e-4) st.mat = `soil`;
   if (run) {
     let target = Math.min(
       1,

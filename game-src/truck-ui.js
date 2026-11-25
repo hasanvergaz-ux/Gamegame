@@ -70,22 +70,27 @@ function tkGauges() {
           }),
         ],
       }),
-      (0, Z.jsx)(`div`, {
+      (0, Z.jsxs)(`div`, {
         className: `hud-status`,
-        children: (0, Z.jsx)(`span`, {
-          "data-state": e.tDumping ? `work` : full || tipping ? `on` : `off`,
-          children: e.tDumping
-            ? `● Dumping`
-            : tipping
-              ? `Bed raised`
-              : full
-                ? `Bed full`
-                : e.tLoad > 0.05
-                  ? `Loaded`
-                  : e.running
-                    ? `Empty`
-                    : `Engine off`,
-        }),
+        children: [
+          (0, Z.jsx)(`span`, {
+            "data-state": e.tDumping ? `work` : full || tipping ? `on` : `off`,
+            children: e.tDumping
+              ? `● Dumping ${e.tMat === `gravel` ? `gravel` : e.tMat === `asphalt` ? `asphalt` : `soil`}`
+              : tipping
+                ? `Bed raised`
+                : full
+                  ? `Full (${e.tMat === `gravel` ? `Çakıl` : e.tMat === `asphalt` ? `Asfalt` : `Toprak`})`
+                  : e.tLoad > 0.05
+                    ? `Loaded: ${e.tMat === `gravel` ? `Çakıl` : e.tMat === `asphalt` ? `Asfalt` : `Toprak`}`
+                    : e.running
+                      ? `Empty`
+                      : `Engine off`,
+          }),
+          e.pvNearSilo
+            ? (0, Z.jsx)(`span`, { children: e.pvNearSilo.name })
+            : (0, Z.jsx)(`span`, { children: e.pvFillAuto ? `Silo Auto` : `Silo Hold` }),
+        ],
       }),
       (0, Z.jsxs)(`div`, {
         className: `hud-area`,
@@ -99,6 +104,8 @@ function tkGauges() {
   });
 }
 function tkControls() {
+  let near = tC((e) => e.pvNearSilo),
+    autoFill = tC((e) => e.pvFillAuto);
   return (0, Z.jsxs)(Z.Fragment, {
     children: [
       (0, Z.jsxs)(`div`, {
@@ -122,6 +129,16 @@ function tkControls() {
               (0, Z.jsx)(`span`, { children: `LOWER BED` }),
             ],
           }),
+          near &&
+            (0, Z.jsx)(`button`, {
+              type: `button`,
+              className: `hud-btn hud-btn-wide`,
+              "data-on": autoFill,
+              onClick: () => {
+                (IS.unlock(), pvToggleFill());
+              },
+              children: near.mat === `gravel` ? `ÇAKIL DOLDUR (G)` : `ASFALT DOLDUR (G)`,
+            }),
         ],
       }),
       (0, Z.jsx)(`div`, {
@@ -153,6 +170,7 @@ var TKhelp = [
   [`A D / ← →`, `Steer`],
   [`E`, `Raise dump bed (tip)`],
   [`Q`, `Lower dump bed`],
+  [`G`, `Toggle silo fill (inside Çakıl or Asfalt Silosu)`],
   [`K`, `Ignition`],
   [`H`, `Horn`],
   [`C`, `Camera: chase / cab / bed`],
@@ -163,12 +181,16 @@ function tkPrompt(e) {
   return !e.running && e.ready
     ? `Dump truck engine off — press K (Ignition)`
     : e.tDumping
-      ? `Dumping soil — keep holding E until the bed is empty`
-      : e.tBed > 0.02 && e.tLoad < 0.05
-        ? `Bed empty — lower it with Q and drive back for more`
-        : e.tLoad >= TKS.CAP * 0.97
-          ? `Bed full — drive to your dump spot and raise the bed (E)`
-          : e.tLoad > 0.05
-            ? `${e.tLoad.toFixed(1)} m³ loaded — load more, or drive off and raise the bed (E) to dump`
-            : `Park beside the excavator, switch (V) and fill the bed — AUTO DIG loads it for you`;
+      ? `Dumping ${e.tMat === `gravel` ? `gravel` : e.tMat === `asphalt` ? `hot asphalt` : `soil`} — hold E until empty`
+      : e.pvFilling
+        ? `Loading ${e.pvFilling === `gravel` ? `crushed gravel` : `hot asphalt 160°C`} from silo (${e.tLoad.toFixed(1)}/${TKS.CAP} m³)`
+        : e.pvNearSilo && e.tLoad < TKS.CAP * 0.96
+          ? `Park under ${e.pvNearSilo.name} bay & lower bed (Q) to load ${e.pvNearSilo.mat === `gravel` ? `gravel` : `asphalt`}`
+          : e.tBed > 0.02 && e.tLoad < 0.05
+            ? `Bed empty — lower it with Q and visit Çakıl Silosu (west) or Asfalt Silosu (east)`
+            : e.tLoad >= TKS.CAP * 0.97
+              ? `${e.tMat === `gravel` ? `Gravel` : e.tMat === `asphalt` ? `Hot asphalt` : `Soil`} loaded — drive to road zone and raise bed (E)`
+              : e.tLoad > 0.05
+                ? `${e.tLoad.toFixed(1)} m³ loaded — drive to roadwork zone & press E to dump`
+                : `Drive under Çakıl Silosu (west), Asfalt Silosu (east) or beside Excavator to load`;
 }

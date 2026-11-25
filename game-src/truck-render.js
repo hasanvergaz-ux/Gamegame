@@ -81,8 +81,8 @@ function tkDrawDash(dash, st) {
     (c.fillStyle = lf > 0.97 ? `#ffb02e` : `#7fe3a5`),
     c.fillRect(196, 52, 120 * lf, 16),
     (c.fillStyle = `#d8f5e3`),
-    (c.font = `700 22px 'Barlow Condensed', Arial, sans-serif`),
-    c.fillText(`${st.load.toFixed(1)} m³`, 196, 92),
+    (c.font = `700 20px 'Barlow Condensed', Arial, sans-serif`),
+    c.fillText(`${st.load.toFixed(1)} m³ ${st.mat === `gravel` ? `GRAVEL` : st.mat === `asphalt` ? `ASPHALT` : `SOIL`}`, 194, 92),
     (c.fillStyle = `#7fe3a5`),
     (c.font = `700 17px 'Barlow Condensed', Arial, sans-serif`),
     c.fillText(`BED`, 196, 118));
@@ -395,6 +395,11 @@ function tkBuild(source) {
       ((heap.visible = fill > 0.004),
         heap.scale.set(1, Math.max(0.001, fill), 1),
         (heap.position.z = (B.z0 + B.z1) / 2 - st.bed * 0.12),
+        (st.mat === `gravel`
+          ? (soilMat.color.set(`#94989b`), (soilMat.roughness = 0.96))
+          : st.mat === `asphalt`
+            ? (soilMat.color.set(`#1d1f23`), (soilMat.roughness = 0.62))
+            : (soilMat.color.set(`#6a4b33`), (soilMat.roughness = 1))),
         (dashT += dt),
         active && ui.cam === 1 && dashT > 0.12 && ((dashT = 0), tkDrawDash(dash, st)));
     },
